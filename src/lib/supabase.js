@@ -1,8 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-// .env.local 파일에 적어둔 환경 변수값을 가져옵니다.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Supabase와 통신할 수 있는 클라이언트 객체를 생성하고 내보냅니다.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 설정 유무 판별 (플레이스홀더이거나 비어있을 경우 폴백 작동)
+const isConfigured = 
+  supabaseUrl && 
+  supabaseUrl !== '' && 
+  supabaseUrl !== 'YOUR_SUPABASE_URL_HERE' && 
+  supabaseAnonKey && 
+  supabaseAnonKey !== '' && 
+  supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY_HERE';
+
+// 안전하게 클라이언트 초기화 (비설정 상태여도 앱이 크래시되지 않도록 보장)
+export const supabase = isConfigured 
+  ? createClient(supabaseUrl, supabaseAnonKey) 
+  : null;
+
+export const isSupabaseConfigured = isConfigured;
