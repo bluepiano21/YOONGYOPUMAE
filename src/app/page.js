@@ -162,7 +162,7 @@ const TIME_SLOTS_POOL = [
 ];
 
 export default function UnifiedPortal() {
-  // Navigation: 'home' (Vibe Cat Care blog) vs 'booking' (Calendar) vs 'sitter' (Sitter Admin Panel)
+  // Navigation: 'home' (Yoongyopoomae blog) vs 'booking' (Calendar) vs 'sitter' (Sitter Admin Panel)
   const [activePortal, setActivePortal] = useState("home"); 
 
   // Global Auth / RLS States
@@ -170,9 +170,7 @@ export default function UnifiedPortal() {
   const [activeUser, setActiveUser] = useState(null);
   const [toast, setToast] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState("vip"); // 'vip' or 'admin'
+  const [selectedRole, setSelectedRole] = useState("vip"); // 'vip' or 'admin' for demo simulation
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- A. HOME PORTAL / BLOG / LOCKED POST STATES ---
@@ -298,7 +296,7 @@ export default function UnifiedPortal() {
     
     const timeNow = new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
     
-    setJournalPreviewText(`🐾 Vibe Cat Care 돌봄 보고서 (${timeNow} 기준)\n-----------------------------\n${mealText} ${activityText} ${bowelText}${custom}\n\n전윤교 펫시터가 정성을 다해 아이를 보살폈습니다. 항상 믿고 맡겨주셔서 감사드립니다! ♥`);
+    setJournalPreviewText(`🐾 윤교품애 돌봄 보고서 (${timeNow} 기준)\n-----------------------------\n${mealText} ${activityText} ${bowelText}${custom}\n\n전윤교 펫시터가 정성을 다해 아이를 보살폈습니다. 항상 믿고 맡겨주셔서 감사드립니다! ♥`);
   }, [journalMeal, journalActivity, journalBowel, journalCustomText]);
 
   const fetchSupabasePosts = async () => {
@@ -329,36 +327,44 @@ export default function UnifiedPortal() {
   };
 
   // --- Authentication Handlers ---
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setIsSubmitting(true);
 
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword
-      });
-      setIsSubmitting(false);
-      if (error) {
-        showToast(`인증 에러: ${error.message}`);
-      } else {
-        setShowLoginModal(false);
+      try {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: typeof window !== "undefined" ? `${window.location.origin}` : "",
+          }
+        });
+        if (error) {
+          showToast(`Google 로그인 에러: ${error.message}`);
+          setIsSubmitting(false);
+        }
+      } catch (err) {
+        showToast(`Google 로그인 오류: ${err.message}`);
+        setIsSubmitting(false);
       }
     } else {
+      // Demo Simulation Mode
       setTimeout(() => {
         setIsSubmitting(false);
         setIsLoggedIn(true);
         const selectedProfile = DEMO_USERS[selectedRole];
         setActiveUser(selectedProfile);
         setShowLoginModal(false);
-        showToast(`[Vibe Cat Care] '${selectedProfile.full_name}' 역할로 로그인 완료!`);
-      }, 500);
+        showToast(`[윤교품애] Google 계정(시뮬레이션: ${selectedProfile.full_name})으로 로그인 완료!`);
+      }, 600);
     }
   };
 
   const handleLogout = async () => {
     if (isSupabaseConfigured) {
       await supabase.auth.signOut();
+      setIsLoggedIn(false);
+      setActiveUser(null);
+      showToast("로그아웃 되었습니다.");
     } else {
       setIsLoggedIn(false);
       setActiveUser(null);
@@ -479,16 +485,16 @@ export default function UnifiedPortal() {
   };
 
   const handleCopyJournalLink = () => {
-    const mockUrl = `https://vibecatcare.yenu.com/journal/share_id=${Date.now()}`;
+    const mockUrl = `https://yoongyopoomae.yenu.com/journal/share_id=${Date.now()}`;
     navigator.clipboard.writeText(mockUrl);
     showToast("📋 돌봄 보고서 공유 단축링크가 클립보드에 복사되었습니다!");
   };
 
   // --- A. BLOG PORTAL HANDLERS ---
   const handlePostCardClick = (post) => {
-    // If restricted and not logged in (or logged in but not VIP/Admin)
-    const isVip = activeUser && (activeUser.role === "vip" || activeUser.role === "admin");
-    if (post.is_restricted && !isVip) {
+    // If restricted and not logged in (or logged in but not VIP/Admin/Member)
+    const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "admin");
+    if (post.is_restricted && !hasAccess) {
       setRestrictedPostTitle(post.title);
       setShowRestrictedModal(true);
     } else {
@@ -656,7 +662,7 @@ export default function UnifiedPortal() {
           padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
           borderBottom: "1px solid var(--border-light)"
         }}>
-          🛡️ Supabase 실시간 클라우드 DB 연동 중 | Vibe Cat Care RLS 정책 및 스토리지 연계 완수
+          🛡️ Supabase 실시간 클라우드 DB 연동 중 | 윤교품애 RLS 정책 및 스토리지 연계 완수
         </div>
       ) : (
         <div style={{
@@ -687,32 +693,129 @@ export default function UnifiedPortal() {
           backgroundColor: "rgba(22, 31, 56, 0.6)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 1000, backdropFilter: "blur(6px)"
         }}>
-          <div className="premium-card animate-fade-in" style={{ maxWidth: "440px", width: "90%", padding: "36px 28px" }}>
-            <div style={{ textAlign: "center", marginBottom: "28px" }}>
-              <span style={{ fontSize: "2.4rem" }}>🔐</span>
-              <h3 style={{ fontSize: "1.4rem", marginTop: "10px", color: "var(--text-main)", fontWeight: "800" }}>
-                통합 인증 센터
+          <div className="premium-card animate-fade-in" style={{ 
+            maxWidth: "440px", 
+            width: "90%", 
+            padding: "40px 32px",
+            backgroundColor: "white",
+            borderRadius: "var(--border-radius-lg)",
+            boxShadow: "var(--shadow-lg)",
+            border: "1px solid var(--border-light)",
+            textAlign: "center"
+          }}>
+            <div style={{ position: "relative", marginBottom: "28px" }}>
+              <button 
+                onClick={() => setShowLoginModal(false)}
+                style={{
+                  position: "absolute",
+                  top: "-20px",
+                  right: "-12px",
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "1.4rem",
+                  cursor: "pointer",
+                  color: "var(--text-muted)",
+                  transition: "var(--transition-fast)"
+                }}
+                onMouseEnter={(e) => e.target.style.color = "var(--text-main)"}
+                onMouseLeave={(e) => e.target.style.color = "var(--text-muted)"}
+              >
+                ✕
+              </button>
+              
+              <div style={{
+                width: "60px",
+                height: "60px",
+                borderRadius: "50%",
+                backgroundColor: "var(--primary-orange-light)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px"
+              }}>
+                <span style={{ fontSize: "1.8rem" }}>🔐</span>
+              </div>
+              <h3 style={{ fontSize: "1.4rem", color: "var(--text-main)", fontWeight: "800", margin: "0 0 6px" }}>
+                윤교품애 인증 센터
               </h3>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                {isSupabaseConfigured ? "등록된 계정으로 로그인해 주세요." : "데모 모드에서는 역할을 선택하여 즉시 로그인 가능합니다!"}
+              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
+                {isSupabaseConfigured 
+                  ? "안전한 Google 원클릭 로그인을 지원합니다." 
+                  : "현재 데모 시뮬레이션 모드로 가동 중입니다."}
               </p>
             </div>
 
-            <form onSubmit={handleAuthSubmit}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Google Login Button */}
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isSubmitting}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "12px",
+                  width: "100%",
+                  padding: "14px 20px",
+                  backgroundColor: "white",
+                  color: "#3c4043",
+                  border: "1.5px solid var(--border-light)",
+                  borderRadius: "var(--border-radius-md)",
+                  fontSize: "0.95rem",
+                  fontWeight: "700",
+                  cursor: isSubmitting ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease-in-out",
+                  boxShadow: "var(--shadow-sm)"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--bg-primary)";
+                  e.currentTarget.style.borderColor = "var(--text-muted)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "white";
+                  e.currentTarget.style.borderColor = "var(--border-light)";
+                }}
+              >
+                {isSubmitting ? (
+                  <span>로그인 진행 중...</span>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.53-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-8.81z"/>
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.74-2.11-6.68-4.96H1.21v3.15C3.18 21.88 7.39 24 12 24z"/>
+                      <path fill="#FBBC05" d="M5.32 14.24c-.24-.72-.38-1.5-.38-2.3s.14-1.58.38-2.3V6.49H1.21C.44 8.04 0 9.77 0 11.62s.44 3.58 1.21 5.13l4.11-3.15C5.18 15.1 5.25 14.66 5.32 14.24z"/>
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.39 0 3.18 2.12 1.21 5.62l4.11 3.15c.94-2.85 3.57-4.96 6.68-4.96z"/>
+                    </svg>
+                    <span>Google 계정으로 로그인</span>
+                  </>
+                )}
+              </button>
+
+              {/* Demo Mode Role Switcher */}
               {!isSupabaseConfigured ? (
-                <div className="form-group" style={{ marginBottom: "20px" }}>
-                  <label className="form-label">체험용 회원 유형 선택</label>
-                  <div style={{ display: "flex", gap: "10px", marginTop: "6px" }}>
+                <div style={{ 
+                  marginTop: "16px", 
+                  padding: "16px 20px", 
+                  backgroundColor: "var(--bg-primary)", 
+                  borderRadius: "var(--border-radius-md)",
+                  border: "1px solid var(--border-light)",
+                  textAlign: "left"
+                }}>
+                  <label className="form-label" style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                    ⚙️ 시뮬레이션 로그인 역할 선택
+                  </label>
+                  <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       type="button"
                       onClick={() => setSelectedRole("vip")}
                       style={{
-                        flex: 1, padding: "12px", border: "1.5px solid var(--border-light)",
+                        flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
                         borderRadius: "var(--border-radius-sm)",
-                        backgroundColor: selectedRole === "vip" ? "var(--primary-orange-light)" : "transparent",
+                        backgroundColor: selectedRole === "vip" ? "var(--primary-orange-light)" : "white",
                         borderColor: selectedRole === "vip" ? "var(--primary-orange)" : "var(--border-light)",
                         color: selectedRole === "vip" ? "var(--primary-orange)" : "var(--text-muted)",
-                        fontWeight: "700", cursor: "pointer"
+                        fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
                       }}
                     >
                       👤 일반 회원 (VIP)
@@ -721,54 +824,48 @@ export default function UnifiedPortal() {
                       type="button"
                       onClick={() => setSelectedRole("admin")}
                       style={{
-                        flex: 1, padding: "12px", border: "1.5px solid var(--border-light)",
+                        flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
                         borderRadius: "var(--border-radius-sm)",
-                        backgroundColor: selectedRole === "admin" ? "var(--primary-orange-light)" : "transparent",
+                        backgroundColor: selectedRole === "admin" ? "var(--primary-orange-light)" : "white",
                         borderColor: selectedRole === "admin" ? "var(--primary-orange)" : "var(--border-light)",
                         color: selectedRole === "admin" ? "var(--primary-orange)" : "var(--text-muted)",
-                        fontWeight: "700", cursor: "pointer"
+                        fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
                       }}
                     >
                       👑 펫시터 (Admin)
                     </button>
                   </div>
+                  <span style={{ display: "block", fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "8px", lineHeight: "1.3" }}>
+                    * 로컬 환경 시뮬레이션 로그인입니다. 선택한 역할로 Google 로그인이 시뮬레이션됩니다.
+                  </span>
                 </div>
               ) : (
-                <>
-                  <div className="form-group">
-                    <label className="form-label">이메일</label>
-                    <input
-                      type="email"
-                      className="form-input"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="sitter@yenu.com"
-                      required
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: "20px" }}>
-                    <label className="form-label">비밀번호</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-                </>
+                <div style={{ 
+                  marginTop: "16px", 
+                  padding: "16px 20px", 
+                  backgroundColor: "var(--bg-primary)", 
+                  borderRadius: "var(--border-radius-md)",
+                  border: "1px solid var(--border-light)",
+                  textAlign: "left"
+                }}>
+                  <span style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                    💡 <strong>관리자(admin) 권한 테스트 안내:</strong><br />
+                    실제 Google 로그인 시 <code>sitter@yenu.com</code> 이메일 계정으로 접속하시면 펫시터 관리자 모드가 활성화됩니다.
+                  </span>
+                </div>
               )}
+            </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowLoginModal(false)} style={{ flex: 1 }}>
-                  취소
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={isSubmitting} style={{ flex: 2 }}>
-                  {isSubmitting ? "인증 진행 중..." : "인증 로그인"}
-                </button>
-              </div>
-            </form>
+            <div style={{ marginTop: "24px", display: "flex", justifyContent: "center" }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowLoginModal(false)} 
+                style={{ width: "100%", padding: "10px" }}
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -896,7 +993,7 @@ export default function UnifiedPortal() {
           <div className="premium-card animate-fade-in" style={{ maxWidth: "550px", width: "95%", padding: "36px 28px" }}>
             <div style={{ borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", marginBottom: "20px" }}>
               <h3 style={{ fontSize: "1.4rem", color: "var(--text-main)", fontWeight: "800" }}>
-                {editingPostId ? "📝 포스트 수정 (Vibe Cat Care)" : "📝 새 포스트 작성 (Vibe Cat Care)"}
+                {editingPostId ? "📝 포스트 수정 (윤교품애)" : "📝 새 포스트 작성 (윤교품애)"}
               </h3>
             </div>
 
@@ -978,7 +1075,7 @@ export default function UnifiedPortal() {
       )}
 
       {/* ============================================================== */}
-      {/* 6. HEADER BAR (Vibe Cat Care branding) */}
+      {/* 6. HEADER BAR (Yoongyopoomae branding) */}
       {/* ============================================================== */}
       <header style={{
         backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)",
@@ -988,16 +1085,14 @@ export default function UnifiedPortal() {
         <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "80px" }}>
           
           {/* Logo brand linked from index.html */}
-          <div onClick={() => setActivePortal("home")} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-            <span style={{ fontSize: "1.8rem", color: "var(--primary-orange)" }}>
-              <i className="fas fa-paw"></i>
-            </span>
+          <div onClick={() => setActivePortal("home")} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
+            <img src="/logo.png?v=3" alt="윤교품애 로고" style={{ width: "42px", height: "auto", borderRadius: "8px" }} />
             <div>
               <span style={{ fontSize: "1.4rem", fontWeight: "800", letterSpacing: "-0.5px", color: "var(--text-main)", fontFamily: "Outfit" }}>
-                Vibe Cat Care
+                윤교품애
               </span>
               <span style={{ fontSize: "0.75rem", color: "var(--success-mint)", fontWeight: "600", display: "block", marginTop: "-3px" }}>
-                전윤교의 고양이 전문 돌봄 포털
+                전윤교의 프리미엄 반려동물 돌봄 포털
               </span>
             </div>
           </div>
@@ -1016,7 +1111,7 @@ export default function UnifiedPortal() {
                 fontSize: "0.85rem", fontWeight: "700", cursor: "pointer", transition: "var(--transition-fast)"
               }}
             >
-              🏠 Vibe Cat Care 홈
+              🏠 윤교품애 홈
             </button>
             <button
               onClick={() => setActivePortal("booking")}
@@ -1072,7 +1167,7 @@ export default function UnifiedPortal() {
       </header>
 
       {/* ============================================================== */}
-      {/* 7. PORTAL VIEW A: 🏠 VIBE CAT CARE HOME & BLOG */}
+      {/* 7. PORTAL VIEW A: 🏠 YOONGYOPOOMAE HOME & BLOG */}
       {/* ============================================================== */}
       {activePortal === "home" && (
         <main className="animate-fade-in" style={{ flex: 1 }}>
@@ -1134,7 +1229,7 @@ export default function UnifiedPortal() {
               <div style={{ display: "flex", justifyContent: "center" }}>
                 <img
                   src="/hero.png"
-                  alt="Vibe Cat Care"
+                  alt="윤교품애"
                   style={{
                     maxWidth: "100%",
                     height: "auto",
@@ -1199,8 +1294,8 @@ export default function UnifiedPortal() {
                 gap: "30px"
               }}>
                 {filteredPosts.map(post => {
-                  const isVip = activeUser && (activeUser.role === "vip" || activeUser.role === "admin");
-                  const isLocked = post.is_restricted && !isVip;
+                  const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "admin");
+                  const isLocked = post.is_restricted && !hasAccess;
                   const isExpanded = expandedPostId === post.id;
                   const isAdmin = activeUser && activeUser.role === "admin";
 
@@ -1972,11 +2067,11 @@ export default function UnifiedPortal() {
       }}>
         <div className="container" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
           <div>
-            <strong style={{ color: "white", fontSize: "1.1rem", display: "block", marginBottom: "4px" }}>Vibe Cat Care (Yoongyopoomae) Hub</strong>
+            <strong style={{ color: "white", fontSize: "1.1rem", display: "block", marginBottom: "4px" }}>윤교품애 (Yoongyopoomae) Hub</strong>
             <span style={{ fontSize: "0.8rem" }}>사용자 지정 RLS & 30초 암호 마스킹 & 캘린더 예약 스위트</span>
           </div>
           <div style={{ fontSize: "0.8rem", textAlign: "right" }}>
-            <span>© 2026 Vibe Cat Care. All Rights Reserved.</span>
+            <span>© 2026 윤교품애. All Rights Reserved.</span>
             <span style={{ display: "block", color: "var(--primary-orange)", marginTop: "2px", fontWeight: "600" }}>
               🔒 Supabase row-level-security & double-pass security timer standard
             </span>

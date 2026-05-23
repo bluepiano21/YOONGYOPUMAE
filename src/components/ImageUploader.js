@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 /**
- * Vibe Cat Care - 명품 이미지 업로더 컴포넌트 (Next.js & Supabase SDK 기반)
+ * 윤교품애 - 명품 이미지 업로더 컴포넌트 (Next.js & Supabase SDK 기반)
  * 
  * [동작 상세]
  * 1. 기기 갤러리/파일 탐색기 또는 Drag-and-Drop을 통해 이미지 파일을 선택합니다.
