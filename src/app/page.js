@@ -105,6 +105,10 @@ const CUSTOMERS_DB = [
     address: "경상남도 거제시 고현동 123-45 102호 (기본 지역)",
     entrance_code: "종1234#",
     doorlock_code: "2026*",
+    entry_method_detail: "공동현관 호출 버튼을 누르고 비밀번호 입력 후 종 버튼을 눌러주세요.",
+    parking_option: "free",
+    photo_video_preference: "many",
+    sns_agreement: true,
     specialties: "신부전 초기 냥이, 매일 15:00 신부전 유도 약물 0.5cc 사료 믹스 필수, 낯가림이 매우 심해 큰 소리에 놀람."
   },
   {
@@ -116,6 +120,10 @@ const CUSTOMERS_DB = [
     address: "경상남도 거제시 아주동 98-7 2층 (기본 지역)",
     entrance_code: "경비실 호출 후 통과",
     doorlock_code: "9988#",
+    entry_method_detail: "경비실 호출 벨을 누르고 방문 돌봄 펫시터라고 말씀하신 뒤 통과해 주세요.",
+    parking_option: "register",
+    photo_video_preference: "many",
+    sns_agreement: false,
     specialties: "15세 노령묘, 관절염으로 높은 곳 점프 금지, 안약 하루 2회 점적 수칙, 식욕 모니터링 필요."
   },
   {
@@ -127,6 +135,10 @@ const CUSTOMERS_DB = [
     address: "경상남도 거제시 하청면 하청로 45-12 401호 (기타 지역 - 추가금 +5,000원 적용)",
     entrance_code: "열쇠 아이콘 터치 후 0401#",
     doorlock_code: "0401*",
+    entry_method_detail: "공동현관 키패드에서 열쇠 버튼을 누르고 호실 번호 입력 후 #을 누르세요.",
+    parking_option: "impossible",
+    photo_video_preference: "confirmation",
+    sns_agreement: true,
     specialties: "활동량이 매우 많고 낚싯대 놀이 과격하게 30분 필요, 현관 나갈 때 탈출 충동 제어 주의."
   }
 ];
@@ -246,12 +258,35 @@ export default function UnifiedPortal() {
   // 신규 / 재신청 고객 구분
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
 
+  // 등록 고객 목록 상태 (보안 관리대장 연동용)
+  const [customers, setCustomers] = useState(CUSTOMERS_DB);
+
+  // 신규 수집 개인정보 및 출입/동의 관련 상태들
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [entranceCode, setEntranceCode] = useState("");
+  const [doorlockCode, setDoorlockCode] = useState("");
+  const [entryMethodDetail, setEntryMethodDetail] = useState("");
+  const [parkingOption, setParkingOption] = useState("free"); // "free" | "paid" | "register" | "impossible"
+  const [photoVideoPreference, setPhotoVideoPreference] = useState("many"); // "many" | "confirmation"
+  const [snsAgreement, setSnsAgreement] = useState(false);
+  const [privacyAgreement, setPrivacyAgreement] = useState(false);
+
   // 재신청 고객이 이전에 저장한 정보 (실제 서비스에서는 DB에서 불러옴 - 여기서는 모의 데이터)
   const MOCK_PREVIOUS_BOOKING = {
     visitArea: "고현동",
     feedingInfo: "싱크대 아래 주황 그릇, 건식 사료 1/4컵 1일 2회, 정수된 물 사용, 참치 알러지 있음",
     litterInfo: "거실 베란다 두부 모래 화장실, 사용 후 응고 부분 스쿱으로 제거 후 봉투에 담아 처리",
-    petPersonality: "낯가림 있음, 겁이 많음"
+    petPersonality: "낯가림 있음, 겁이 많음",
+    clientPhone: "010-4422-9011",
+    clientAddress: "경상남도 거제시 고현동 123-45 102호 (기본 지역)",
+    entranceCode: "종1234#",
+    doorlockCode: "2026*",
+    entryMethodDetail: "공동현관 호출 버튼을 누르고 비밀번호 입력 후 종 버튼을 눌러주세요.",
+    parkingOption: "free",
+    photoVideoPreference: "many",
+    snsAgreement: true,
+    privacyAgreement: true
   };
 
   // Dynamic price calculator based on new pricing policies
@@ -494,6 +529,34 @@ export default function UnifiedPortal() {
       return;
     }
 
+    // 신규 고객의 경우, 개인정보 및 출입/동의 필수 검증
+    if (!isReturningCustomer) {
+      if (!clientPhone.trim()) {
+        showToast("연락처를 입력해 주세요.");
+        return;
+      }
+      if (!clientAddress.trim()) {
+        showToast("방문 상세 주소를 입력해 주세요.");
+        return;
+      }
+      if (!entranceCode.trim()) {
+        showToast("공동현관 출입번호를 입력해 주세요. (없을 시 '없음')");
+        return;
+      }
+      if (!doorlockCode.trim()) {
+        showToast("세대 현관 도어락 비밀번호를 입력해 주세요.");
+        return;
+      }
+      if (!entryMethodDetail.trim()) {
+        showToast("상세 출입 방법 안내를 입력해 주세요.");
+        return;
+      }
+      if (!privacyAgreement) {
+        showToast("개인정보 수집 및 이용(방문탁묘 용도) 동의는 필수입니다.");
+        return;
+      }
+    }
+
     if (!recentHospitalVisit || !infectiousDisease) {
       showToast("건강 상태 체크를 완료해 주세요.");
       return;
@@ -530,6 +593,16 @@ export default function UnifiedPortal() {
         ? MOCK_PREVIOUS_BOOKING.petPersonality
         : ([...petPersonality, ...(petPersonalityOther ? [`기타: ${petPersonalityOther}`] : [])].join(", ") || "미입력");
 
+      // 개인정보/출입정보 해결
+      const effectiveClientPhone = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.clientPhone : clientPhone;
+      const effectiveClientAddress = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.clientAddress : clientAddress;
+      const effectiveEntranceCode = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.entranceCode : entranceCode;
+      const effectiveDoorlockCode = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.doorlockCode : doorlockCode;
+      const effectiveEntryMethodDetail = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.entryMethodDetail : entryMethodDetail;
+      const effectiveParkingOption = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.parkingOption : parkingOption;
+      const effectivePhotoVideoPreference = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.photoVideoPreference : photoVideoPreference;
+      const effectiveSnsAgreement = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.snsAgreement : snsAgreement;
+
       const { basePrice, additionalFee, totalPrice } = calculateBookingPrice();
 
       const selectedOptions = [];
@@ -560,16 +633,26 @@ export default function UnifiedPortal() {
         infectiousDisease: infectiousDisease === "yes" ? "있음" : "없음",
         petPersonality: effectivePersonalityList,
         feedingInfo: effectiveFeedingInfo,
-        litterInfo: effectiveLitterInfo
+        litterInfo: effectiveLitterInfo,
+        clientPhone: effectiveClientPhone,
+        clientAddress: effectiveClientAddress,
+        entranceCode: effectiveEntranceCode,
+        doorlockCode: effectiveDoorlockCode,
+        entryMethodDetail: effectiveEntryMethodDetail,
+        parkingOption: effectiveParkingOption,
+        photoVideoPreference: effectivePhotoVideoPreference,
+        snsAgreement: effectiveSnsAgreement
       };
 
       setBookingSummary(summary);
       setShowBookingSuccessModal(true);
 
+      const newCustId = Date.now() + 10;
+
       // Add to sitterReservations list dynamically
       const newReservation = {
         id: Date.now(),
-        customer_id: Date.now() + 10,
+        customer_id: newCustId,
         client_name: activeUser ? activeUser.full_name : "보호자 회원",
         pet_name: petName,
         is_returning_customer: isReturningCustomer,
@@ -585,10 +668,36 @@ export default function UnifiedPortal() {
         feeding_info: effectiveFeedingInfo,
         litter_info: effectiveLitterInfo,
         recent_hospital: recentHospitalVisit === "yes" ? `있음 - ${recentHospitalDetail || "내용 미기재"}` : "없음",
-        infectious_disease: infectiousDisease === "yes" ? "있음" : "없음"
+        infectious_disease: infectiousDisease === "yes" ? "있음" : "없음",
+        phone: effectiveClientPhone,
+        address: effectiveClientAddress,
+        entrance_code: effectiveEntranceCode,
+        doorlock_code: effectiveDoorlockCode,
+        entry_method_detail: effectiveEntryMethodDetail,
+        parking_option: effectiveParkingOption,
+        photo_video_preference: effectivePhotoVideoPreference,
+        sns_agreement: effectiveSnsAgreement
       };
 
       setSitterReservations((prev) => [...prev, newReservation]);
+
+      // Add to customers state list dynamically
+      const newCustomerRecord = {
+        id: newCustId,
+        client_name: activeUser ? activeUser.full_name : "보호자 회원",
+        phone: effectiveClientPhone,
+        pet_name: petName,
+        pet_age: parseInt(petAge),
+        address: effectiveClientAddress,
+        entrance_code: effectiveEntranceCode,
+        doorlock_code: effectiveDoorlockCode,
+        entry_method_detail: effectiveEntryMethodDetail,
+        parking_option: effectiveParkingOption,
+        photo_video_preference: effectivePhotoVideoPreference,
+        sns_agreement: effectiveSnsAgreement,
+        specialties: `요청사항: ${careMemo || "없음"} | 성격: ${effectivePersonalityList}`
+      };
+      setCustomers(prev => [...prev, newCustomerRecord]);
 
       // Reset
       setSelectedDate(null);
@@ -614,6 +723,16 @@ export default function UnifiedPortal() {
       setFeedingInfo("");
       setLitterInfo("");
       setIsReturningCustomer(false);
+
+      setClientPhone("");
+      setClientAddress("");
+      setEntranceCode("");
+      setDoorlockCode("");
+      setEntryMethodDetail("");
+      setParkingOption("free");
+      setPhotoVideoPreference("many");
+      setSnsAgreement(false);
+      setPrivacyAgreement(false);
     }, 1200);
   };
 
@@ -1982,9 +2101,136 @@ export default function UnifiedPortal() {
                     </div>
                   </div>
 
-                  {/* 방문 지역: 신규 고객만 입력, 재신청은 자동 적용 */}
+                  {/* 방문 지역 & 개인정보 수집: 신규 고객만 입력, 재신청은 자동 적용 */}
                   {!isReturningCustomer ? (
                     <>
+                      <div className="form-group" style={{ borderTop: "1.5px dashed var(--border-light)", paddingTop: "16px" }}>
+                        <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "12px" }}>
+                          🔒 신규 고객 필수 보안 및 개인정보 기재 (방문 용도)
+                        </span>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">📞 연락처 (필수)</label>
+                        <input
+                          type="tel"
+                          className="form-input"
+                          value={clientPhone}
+                          onChange={(e) => setClientPhone(e.target.value)}
+                          placeholder="예: 010-1234-5678"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">🏠 방문 상세 주소 (필수)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={clientAddress}
+                          onChange={(e) => setClientAddress(e.target.value)}
+                          placeholder="예: 경상남도 거제시 고현로 123, 101동 102호"
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div>
+                          <label className="form-label">🔑 공동현관 번호 (필수)</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={entranceCode}
+                            onChange={(e) => setEntranceCode(e.target.value)}
+                            placeholder="예: 종1234# 또는 없음"
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label">🔑 도어락 비밀번호 (필수)</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={doorlockCode}
+                            onChange={(e) => setDoorlockCode(e.target.value)}
+                            placeholder="예: 1234* 또는 열쇠"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">🚪 상세 출입 방법 안내 (필수)</label>
+                        <textarea
+                          rows="2"
+                          className="form-input"
+                          value={entryMethodDetail}
+                          onChange={(e) => setEntryMethodDetail(e.target.value)}
+                          placeholder="예: 공동현관 호출 후 경비실 승인 필요 / 도어락 커버를 올리고 입력 등"
+                          style={{ resize: "vertical", fontSize: "0.85rem" }}
+                        ></textarea>
+                      </div>
+
+                      <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div>
+                          <label className="form-label">🅿️ 차량등록 및 주차 여부</label>
+                          <select
+                            className="form-input"
+                            value={parkingOption}
+                            onChange={(e) => setParkingOption(e.target.value)}
+                            style={{ appearance: "auto" }}
+                          >
+                            <option value="free">무료 주차 가능</option>
+                            <option value="paid">유료 주차 가능</option>
+                            <option value="register">차량 사전 등록 필요</option>
+                            <option value="impossible">주차 불가/대중교통</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label">📸 사진/영상 전송 희망</label>
+                          <select
+                            className="form-input"
+                            value={photoVideoPreference}
+                            onChange={(e) => setPhotoVideoPreference(e.target.value)}
+                            style={{ appearance: "auto" }}
+                          >
+                            <option value="many">사진, 영상 많이 보내주세요</option>
+                            <option value="confirmation">방문/퇴실 확인 문자만 한 통</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="form-group" style={{
+                        backgroundColor: "var(--bg-secondary)",
+                        padding: "14px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border-light)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                        marginTop: "4px"
+                      }}>
+                        <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={snsAgreement}
+                            onChange={(e) => setSnsAgreement(e.target.checked)}
+                            style={{ marginTop: "2px" }}
+                          />
+                          <span style={{ fontSize: "0.82rem", color: "var(--text-main)" }}>
+                            [선택] 동영상 및 사진 SNS/블로그 홍보 마케팅 사용 동의
+                          </span>
+                        </label>
+
+                        <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", borderTop: "1px solid var(--border-light)", paddingTop: "8px" }}>
+                          <input
+                            type="checkbox"
+                            checked={privacyAgreement}
+                            onChange={(e) => setPrivacyAgreement(e.target.checked)}
+                            style={{ marginTop: "2px" }}
+                          />
+                          <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-main)" }}>
+                            [필수] 개인정보 수집 및 이용 동의 (방문탁묘 목적 수집: 연락처, 주소, 공동현관 및 도어락 비밀번호, 출입방법, 차량등록 여부 등)
+                          </span>
+                        </label>
+                      </div>
+
                       <div className="form-group">
                         <label className="form-label">📍 방문 예정 지역 (필수)</label>
                         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "6px" }}>
@@ -2026,26 +2272,46 @@ export default function UnifiedPortal() {
                   ) : (
                     <div style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "12px 14px",
+                      flexDirection: "column",
+                      gap: "12px",
+                      padding: "16px",
                       backgroundColor: "var(--bg-secondary)",
                       borderRadius: "var(--border-radius-sm)",
                       border: "1px solid var(--border-light)",
                       fontSize: "0.85rem"
                     }}>
-                      <span>📍</span>
-                      <span style={{ color: "var(--text-muted)" }}>방문 지역:</span>
-                      <strong style={{ color: "var(--text-main)" }}>{MOCK_PREVIOUS_BOOKING.visitArea}</strong>
-                      <span style={{
-                        marginLeft: "auto",
-                        fontSize: "0.72rem",
-                        backgroundColor: "var(--success-mint-light)",
-                        color: "var(--success-mint)",
-                        padding: "2px 7px",
-                        borderRadius: "8px",
-                        fontWeight: "700"
-                      }}>이전 정보 자동 적용</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span>📍</span>
+                        <span style={{ color: "var(--text-muted)" }}>방문 지역:</span>
+                        <strong style={{ color: "var(--text-main)" }}>{MOCK_PREVIOUS_BOOKING.visitArea}</strong>
+                        <span style={{
+                          marginLeft: "auto",
+                          fontSize: "0.72rem",
+                          backgroundColor: "var(--success-mint-light)",
+                          color: "var(--success-mint)",
+                          padding: "2px 7px",
+                          borderRadius: "8px",
+                          fontWeight: "700"
+                        }}>이전 정보 자동 적용</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border-light)", paddingTop: "8px" }}>
+                        <span style={{ color: "var(--text-muted)" }}>연락처:</span>
+                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>{MOCK_PREVIOUS_BOOKING.clientPhone}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "var(--text-muted)" }}>주소:</span>
+                        <span style={{ color: "var(--text-main)", fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "250px" }}>{MOCK_PREVIOUS_BOOKING.clientAddress}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "var(--text-muted)" }}>출입코드:</span>
+                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>공동현관(••••) / 도어락(••••)</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "var(--text-muted)" }}>주차/사진:</span>
+                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>
+                          {MOCK_PREVIOUS_BOOKING.parkingOption === "free" ? "무료주차" : "주차등록"} / {MOCK_PREVIOUS_BOOKING.photoVideoPreference === "many" ? "많이 전송" : "확인문자"}
+                        </span>
+                      </div>
                     </div>
                   )}
 
@@ -2764,18 +3030,18 @@ export default function UnifiedPortal() {
                   📂 등록 고객 보안 관리대장 (출입코드 30초 한시 공개)
                 </h3>
 
-                {CUSTOMERS_DB.map((customer) => {
+                {customers.map((customer) => {
                   const entranceTimer = revealedEntranceIds[customer.id] || 0;
                   const doorlockTimer = revealedDoorlockIds[customer.id] || 0;
 
                   return (
-                    <div key={customer.id} className="premium-card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div key={customer.id} className="premium-card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px" }}>
                       
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <h4 style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--text-main)" }}>
                           🐱 {customer.pet_name}네 ({customer.client_name}, {customer.pet_age}살)
                         </h4>
-                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-main)", fontWeight: "700" }}>
                           📞 {customer.phone}
                         </span>
                       </div>
@@ -2783,6 +3049,43 @@ export default function UnifiedPortal() {
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
                         <span style={{ fontWeight: "700", color: "var(--text-main)", display: "block" }}>주소</span>
                         {customer.address}
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <div>
+                          <span style={{ fontWeight: "700", color: "var(--text-main)", display: "block" }}>🅿️ 차량등록/주차</span>
+                          <span style={{ color: "var(--text-main)", fontWeight: "600" }}>
+                            {customer.parking_option === "free" ? "무료 주차 가능" :
+                             customer.parking_option === "paid" ? "유료 주차 가능" :
+                             customer.parking_option === "register" ? "차량 사전 등록 필요" : "주차 불가/대중교통"}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ fontWeight: "700", color: "var(--text-main)", display: "block" }}>📸 사진/영상 전송</span>
+                          <span style={{ color: "var(--text-main)", fontWeight: "600" }}>
+                            {customer.photo_video_preference === "many" ? "많이 전송 요청" : "확인 문자만 요청"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <div>
+                          <span style={{ fontWeight: "700", color: "var(--text-main)", display: "block" }}>📢 SNS 홍보 동의</span>
+                          <span style={{ fontWeight: "750", color: customer.sns_agreement ? "var(--success-mint)" : "var(--text-muted)" }}>
+                            {customer.sns_agreement ? "동의함 (Yes)" : "동의 안 함 (No)"}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ fontWeight: "700", color: "var(--text-main)", display: "block" }}>👤 개인정보 동의</span>
+                          <span style={{ fontWeight: "750", color: "var(--success-mint)" }}>동의 완료 (필수)</span>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                        <span style={{ fontWeight: "700", color: "var(--text-main)", display: "block" }}>🚪 출입 방법 안내</span>
+                        <p style={{ margin: 0, fontSize: "0.83rem", color: "var(--text-main)", backgroundColor: "var(--bg-secondary)", padding: "8px 10px", borderRadius: "6px", border: "1px solid var(--border-light)" }}>
+                          {customer.entry_method_detail || "기재된 출입 방법 안내가 없습니다."}
+                        </p>
                       </div>
 
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
