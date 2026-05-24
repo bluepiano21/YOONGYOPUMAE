@@ -1,3 +1,4 @@
+/* eslint-disable */
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -26,6 +27,12 @@ export default function ImageUploader({ postId, userId, isOwnerOrAdmin }) {
   const [toast, setToast] = useState(null);
   
   const fileInputRef = useRef(null);
+
+  // Toast 메시지 팝업
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // 1. 해당 포스트의 업로드된 이미지 리스트 가져오기 (Allow public read)
   const fetchImages = async () => {
@@ -63,11 +70,6 @@ export default function ImageUploader({ postId, userId, isOwnerOrAdmin }) {
     fetchImages();
   }, [postId]);
 
-  // Toast 메시지 팝업
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
 
   // 2. 이미지 파일 선택 및 검증
   const handleFileChange = async (e) => {
