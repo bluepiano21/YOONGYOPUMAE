@@ -151,6 +151,7 @@ const MOCK_RESERVATIONS = [
     client_name: "김미선 회원",
     pet_name: "보리",
     visit_time: "오늘 15:00 - 17:00 (방문 1시간 전)",
+    visit_date_string: new Date().toDateString(),
     mandatory_requirements: "💊 보리 15시 투약 지침: 신부전 약물 0.5cc 필수 급여 및 2차 주거 보안 코드 확인 준수",
     status: "confirmed",
     is_confirmed_by_sitter: false,
@@ -165,6 +166,7 @@ const MOCK_RESERVATIONS = [
     client_name: "이은주 회원",
     pet_name: "먼지",
     visit_time: "내일 11:00 - 13:00",
+    visit_date_string: new Date(Date.now() + 24 * 3600 * 1000).toDateString(),
     mandatory_requirements: "👁️ 관절염 보호 및 안약 점안, 소변 누적 횟수 모래통 점검",
     status: "confirmed",
     is_confirmed_by_sitter: false,
@@ -212,6 +214,7 @@ export default function UnifiedPortal() {
   const [newImageUrl, setNewImageUrl] = useState("");
   const [expandedPostId, setExpandedPostId] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
+  const [heroImageSrc, setHeroImageSrc] = useState("/hero.png");
   
   // Post restrictions locking modal
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
@@ -231,6 +234,17 @@ export default function UnifiedPortal() {
   const [isBookingLoading, setIsBookingLoading] = useState(false);
   const [showBookingSuccessModal, setShowBookingSuccessModal] = useState(false);
   const [bookingSummary, setBookingSummary] = useState(null);
+  const [tempBookingData, setTempBookingData] = useState(null);
+
+  // New multi-day and questionnaire fields
+  const [bookingType, setBookingType] = useState("single"); // "single" | "multi"
+  const [bookingStartDate, setBookingStartDate] = useState("");
+  const [bookingEndDate, setBookingEndDate] = useState("");
+  const [bookingFrequency, setBookingFrequency] = useState("daily"); // "daily" | "every_other" | "custom"
+  const [bookingDateText, setBookingDateText] = useState("");
+  const [bookingTimeText, setBookingTimeText] = useState("");
+  const [petCount, setPetCount] = useState("1");
+  const [petDetailsText, setPetDetailsText] = useState("");
 
   // New Pricing Option States
   const [isHoliday, setIsHoliday] = useState(false);
@@ -286,7 +300,90 @@ export default function UnifiedPortal() {
     parkingOption: "free",
     photoVideoPreference: "many",
     snsAgreement: true,
-    privacyAgreement: true
+    privacyAgreement: true,
+    petName: "로니",
+    petAge: "3",
+    petCount: "1",
+    bookingDateText: "5월 27일 ~ 5월 30일 매일",
+    bookingTimeText: "오후 2시 선호",
+    petDetailsText: "1. 로니 (3살, 남아, 중성화 완료) - 소심하지만 다정한 아이. 사료 급여와 감자 수확 필요."
+  };
+
+  // 재신청 / 신규 선택 시 폼 필드 자동 로드/초기화 함수
+  const handleCustomerTypeChange = (isReturning) => {
+    setIsReturningCustomer(isReturning);
+    if (isReturning) {
+      setFeedingInfo(MOCK_PREVIOUS_BOOKING.feedingInfo);
+      setLitterInfo(MOCK_PREVIOUS_BOOKING.litterInfo);
+      
+      const savedTraits = MOCK_PREVIOUS_BOOKING.petPersonality.split(", ").map(t => t.trim());
+      const standardTraits = ["사람 좋아함", "낯가림 있음", "겁이 많음", "공격성 있음", "만지는 거 싫어함"];
+      
+      const standardSelected = savedTraits.filter(t => standardTraits.includes(t));
+      const otherSelected = savedTraits.filter(t => !standardTraits.includes(t)).join(", ");
+      
+      setPetPersonality(standardSelected);
+      setPetPersonalityOther(otherSelected);
+
+      // Auto-fill new fields for returning customer
+      setPetName(MOCK_PREVIOUS_BOOKING.petName || "");
+      setPetAge(MOCK_PREVIOUS_BOOKING.petAge || "");
+      setPetCount(MOCK_PREVIOUS_BOOKING.petCount || "1");
+      setBookingDateText(MOCK_PREVIOUS_BOOKING.bookingDateText || "");
+      setBookingTimeText(MOCK_PREVIOUS_BOOKING.bookingTimeText || "");
+      setPetDetailsText(MOCK_PREVIOUS_BOOKING.petDetailsText || "");
+    } else {
+      setFeedingInfo("");
+      setLitterInfo("");
+      setPetPersonality([]);
+      setPetPersonalityOther("");
+
+      // Clear fields for new customer
+      setPetName("");
+      setPetAge("");
+      setPetCount("1");
+      setBookingDateText("");
+      setBookingTimeText("");
+      setPetDetailsText("");
+    }
+  };
+
+  // 특정 시간대 예약 여부 확인 함수
+  const isSlotBooked = (slot) => {
+    if (slot.isBooked) return true;
+    if (!selectedDate) return false;
+    
+    const dateString = selectedDate.toDateString();
+    return sitterReservations.some(res => 
+      res.visit_date_string === dateString && res.visit_time.includes(slot.time)
+    );
+  };
+
+  // Sync selected time slot text to bookingTimeText
+  useEffect(() => {
+    if (selectedTimeSlot) {
+      setBookingTimeText(selectedTimeSlot.time);
+    }
+  }, [selectedTimeSlot]);
+
+  // 여러 날 연속/정기 요금 일수 계산기
+  const getMultiDaysCount = () => {
+    if (bookingType !== "multi" || !bookingStartDate || !bookingEndDate) return 1;
+    const start = new Date(bookingStartDate);
+    const end = new Date(bookingEndDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 1;
+
+    let count = 0;
+    let curr = new Date(start);
+    while (curr <= end) {
+      count++;
+      if (bookingFrequency === "every_other") {
+        curr.setDate(curr.getDate() + 2);
+      } else {
+        curr.setDate(curr.getDate() + 1);
+      }
+    }
+    return count || 1;
   };
 
   // Dynamic price calculator based on new pricing policies
@@ -303,10 +400,13 @@ export default function UnifiedPortal() {
     if (optTwoVisits) extra += 13000;
     if (visitArea === "기타") extra += 5000;
     
+    const daysMultiplier = bookingType === "multi" ? getMultiDaysCount() : 1;
+    
     return {
-      basePrice: base,
-      additionalFee: extra,
-      totalPrice: base + extra
+      basePrice: base * daysMultiplier,
+      additionalFee: extra * daysMultiplier,
+      totalPrice: (base + extra) * daysMultiplier,
+      daysCount: daysMultiplier
     };
   };
 
@@ -359,6 +459,15 @@ export default function UnifiedPortal() {
 
     return () => {
       subscription.unsubscribe();
+    };
+  }, []);
+
+  // Handle fallback hero image loading check (prevents React 19 image preload issues)
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/hero.png";
+    img.onerror = () => {
+      setHeroImageSrc("https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800");
     };
   }, []);
 
@@ -519,9 +628,17 @@ export default function UnifiedPortal() {
   const handleBookingSubmit = (e) => {
     e.preventDefault();
 
-    if (!selectedDate || !selectedTimeSlot || !petName || !petAge) {
-      showToast("필수 예약 양식을 모두 완성해 주세요.");
-      return;
+    // Validation based on reservation type
+    if (bookingType === "single") {
+      if (!selectedDate || !selectedTimeSlot || !petName || !petAge) {
+        showToast("필수 예약 양식을 모두 완성해 주세요. (날짜 선택, 시간대 선택, 대표 동물 이름, 나이 기입 필수)");
+        return;
+      }
+    } else {
+      if (!bookingStartDate || !bookingEndDate || !bookingDateText.trim() || !bookingTimeText.trim() || !petName || !petDetailsText.trim()) {
+        showToast("여러 날 연속/정기 신청 양식을 완성해 주세요. (시작일, 종료일, 방문 날짜 기재, 시간대 기재, 대표 동물 이름, 상세 정보 필수)");
+        return;
+      }
     }
 
     if (!isReturningCustomer && visitArea === "기타" && !customArea.trim()) {
@@ -587,11 +704,9 @@ export default function UnifiedPortal() {
       const effectiveVisitArea = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.visitArea : (
         visitArea === "기타" ? customArea : (visitArea + (visitArea === "사곡" ? "리" : "동"))
       );
-      const effectiveFeedingInfo = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.feedingInfo : (feedingInfo || "미입력");
-      const effectiveLitterInfo = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.litterInfo : (litterInfo || "미입력");
-      const effectivePersonalityList = isReturningCustomer
-        ? MOCK_PREVIOUS_BOOKING.petPersonality
-        : ([...petPersonality, ...(petPersonalityOther ? [`기타: ${petPersonalityOther}`] : [])].join(", ") || "미입력");
+      const effectiveFeedingInfo = feedingInfo || "미입력";
+      const effectiveLitterInfo = litterInfo || "미입력";
+      const effectivePersonalityList = [...petPersonality, ...(petPersonalityOther ? [`기타: ${petPersonalityOther}`] : [])].join(", ") || "미입력";
 
       // 개인정보/출입정보 해결
       const effectiveClientPhone = isReturningCustomer ? MOCK_PREVIOUS_BOOKING.clientPhone : clientPhone;
@@ -615,18 +730,39 @@ export default function UnifiedPortal() {
       if (optTwoVisits) selectedOptions.push("1일 2회 방문 (+13,000원)");
       if (!isReturningCustomer && visitArea === "기타") selectedOptions.push("외 지역 추가요금 (+5,000원)");
 
+      // Resolve multi-date list
+      let bookingDates = [selectedDate];
+      if (bookingType === "multi") {
+        bookingDates = [];
+        const start = new Date(bookingStartDate);
+        const end = new Date(bookingEndDate);
+        let curr = new Date(start);
+        while (curr <= end) {
+          bookingDates.push(new Date(curr));
+          if (bookingFrequency === "every_other") {
+            curr.setDate(curr.getDate() + 2);
+          } else {
+            curr.setDate(curr.getDate() + 1);
+          }
+        }
+      }
+
       const summary = {
-        date: selectedDate.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }),
-        time: selectedTimeSlot.time,
-        petName,
-        petAge,
+        date: bookingType === "single"
+          ? selectedDate.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })
+          : `${bookingStartDate} ~ ${bookingEndDate} (${bookingFrequency === "daily" ? "매일" : "격일"} 방문 | 총 ${bookingDates.length}일)`,
+        time: bookingType === "single"
+          ? selectedTimeSlot.time
+          : `${bookingTimeText} (방문 조율 가능)`,
+        petName: petName,
+        petAge: bookingType === "single" ? `${petAge}살` : `${petCount}마리`,
         serviceType: "기본 돌봄 (1일 1회 약 30분)",
         visitArea: effectiveVisitArea,
         additionalFee,
         basePrice,
         totalPrice,
         selectedOptions,
-        careMemo: careMemo || "없음",
+        careMemo: bookingType === "single" ? (careMemo || "없음") : `[희망 날짜]: ${bookingDateText}\n[희망 시간]: ${bookingTimeText}\n[상세 내용]: ${petDetailsText}`,
         sitterName: "전윤교 펫시터 (전문가)",
         isReturningCustomer,
         recentHospitalVisit: recentHospitalVisit === "yes" ? `있음 - ${recentHospitalDetail || "내용 미기재"}` : "없음",
@@ -649,37 +785,45 @@ export default function UnifiedPortal() {
 
       const newCustId = Date.now() + 10;
 
-      // Add to sitterReservations list dynamically
-      const newReservation = {
-        id: Date.now(),
-        customer_id: newCustId,
-        client_name: activeUser ? activeUser.full_name : "보호자 회원",
-        pet_name: petName,
-        is_returning_customer: isReturningCustomer,
-        visit_time: `${selectedDate.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} ${selectedTimeSlot.time}`,
-        mandatory_requirements: `🐾 ${petName} (${petAge}살) ${isReturningCustomer ? "[재신청]" : "[신규]"} | 옵션: ${selectedOptions.join(", ") || '없음'} | 요청: ${careMemo || '없음'}`,
-        status: "confirmed",
-        is_confirmed_by_sitter: false,
-        visit_area: effectiveVisitArea,
-        additional_fee: additionalFee,
-        total_price: totalPrice,
-        selected_options: selectedOptions,
-        pet_personality: effectivePersonalityList,
-        feeding_info: effectiveFeedingInfo,
-        litter_info: effectiveLitterInfo,
-        recent_hospital: recentHospitalVisit === "yes" ? `있음 - ${recentHospitalDetail || "내용 미기재"}` : "없음",
-        infectious_disease: infectiousDisease === "yes" ? "있음" : "없음",
-        phone: effectiveClientPhone,
-        address: effectiveClientAddress,
-        entrance_code: effectiveEntranceCode,
-        doorlock_code: effectiveDoorlockCode,
-        entry_method_detail: effectiveEntryMethodDetail,
-        parking_option: effectiveParkingOption,
-        photo_video_preference: effectivePhotoVideoPreference,
-        sns_agreement: effectiveSnsAgreement
-      };
+      // Add dynamic reservations for each date
+      const reservationsToAdd = bookingDates.map((dateObj, idx) => {
+        const dateStr = dateObj.toDateString();
+        const visitTimeDisplay = bookingType === "single"
+          ? `${dateObj.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} ${selectedTimeSlot.time}`
+          : `${dateObj.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} ${bookingTimeText} (조정 가능)`;
 
-      setSitterReservations((prev) => [...prev, newReservation]);
+        return {
+          id: Date.now() + idx,
+          customer_id: newCustId,
+          client_name: activeUser ? activeUser.full_name : "보호자 회원",
+          pet_name: petName,
+          is_returning_customer: isReturningCustomer,
+          visit_time: visitTimeDisplay,
+          visit_date_string: dateStr,
+          mandatory_requirements: bookingType === "single"
+            ? `🐾 ${petName} (${petAge}살) ${isReturningCustomer ? "[재신청]" : "[신규]"} | 옵션: ${selectedOptions.join(", ") || '없음'} | 요청: ${careMemo || '없음'}`
+            : `🐾 ${petName} (${petCount}마리) | 상세: ${petDetailsText.substring(0, 100)}... | 기간: ${bookingStartDate} ~ ${bookingEndDate} | [옵션]: ${selectedOptions.join(", ")}`,
+          status: "confirmed",
+          is_confirmed_by_sitter: false,
+          visit_area: effectiveVisitArea,
+          additional_fee: additionalFee / bookingDates.length,
+          total_price: totalPrice / bookingDates.length,
+          selected_options: selectedOptions,
+          pet_personality: effectivePersonalityList,
+          feeding_info: effectiveFeedingInfo,
+          litter_info: effectiveLitterInfo,
+          recent_hospital: recentHospitalVisit === "yes" ? `있음 - ${recentHospitalDetail || "내용 미기재"}` : "없음",
+          infectious_disease: infectiousDisease === "yes" ? "있음" : "없음",
+          phone: effectiveClientPhone,
+          address: effectiveClientAddress,
+          entrance_code: effectiveEntranceCode,
+          doorlock_code: effectiveDoorlockCode,
+          entry_method_detail: effectiveEntryMethodDetail,
+          parking_option: effectiveParkingOption,
+          photo_video_preference: effectivePhotoVideoPreference,
+          sns_agreement: effectiveSnsAgreement
+        };
+      });
 
       // Add to customers state list dynamically
       const newCustomerRecord = {
@@ -687,7 +831,7 @@ export default function UnifiedPortal() {
         client_name: activeUser ? activeUser.full_name : "보호자 회원",
         phone: effectiveClientPhone,
         pet_name: petName,
-        pet_age: parseInt(petAge),
+        pet_age: bookingType === "single" ? parseInt(petAge) : parseInt(petCount),
         address: effectiveClientAddress,
         entrance_code: effectiveEntranceCode,
         doorlock_code: effectiveDoorlockCode,
@@ -695,13 +839,28 @@ export default function UnifiedPortal() {
         parking_option: effectiveParkingOption,
         photo_video_preference: effectivePhotoVideoPreference,
         sns_agreement: effectiveSnsAgreement,
-        specialties: `요청사항: ${careMemo || "없음"} | 성격: ${effectivePersonalityList}`
+        specialties: bookingType === "single"
+          ? `요청사항: ${careMemo || "없음"} | 성격: ${effectivePersonalityList}`
+          : `마릿수/상세: ${petDetailsText.substring(0, 150)}... | 성격: ${effectivePersonalityList}`
       };
-      setCustomers(prev => [...prev, newCustomerRecord]);
 
-      // Reset
-      setSelectedDate(null);
+      setTempBookingData({
+        reservations: reservationsToAdd,
+        customerRecord: newCustomerRecord
+      });
+    }, 1200);
+  };
+
+  // 예약확정 최종 커밋 및 폼 초기화 함수
+  const handleConfirmReservation = () => {
+    if (tempBookingData) {
+      setSitterReservations((prev) => [...prev, ...tempBookingData.reservations]);
+      setCustomers((prev) => [...prev, tempBookingData.customerRecord]);
+      setTempBookingData(null);
+
+      // Reset all booking input states
       setSelectedTimeSlot(null);
+      setSelectedDate(null);
       setPetName("");
       setPetAge("");
       setVisitArea("고현");
@@ -723,6 +882,11 @@ export default function UnifiedPortal() {
       setFeedingInfo("");
       setLitterInfo("");
       setIsReturningCustomer(false);
+      setBookingStartDate("");
+      setBookingEndDate("");
+      setBookingDateText("");
+      setBookingTimeText("");
+      setPetDetailsText("");
 
       setClientPhone("");
       setClientAddress("");
@@ -733,7 +897,10 @@ export default function UnifiedPortal() {
       setPhotoVideoPreference("many");
       setSnsAgreement(false);
       setPrivacyAgreement(false);
-    }, 1200);
+
+      setShowBookingSuccessModal(false);
+      showToast("📅 예약 신청 정보가 돌봄달력에 즉시 적용되었습니다.");
+    }
   };
 
   // --- C. SITTER PORTAL METHODS ---
@@ -1202,7 +1369,15 @@ export default function UnifiedPortal() {
           backgroundColor: "rgba(22, 31, 56, 0.7)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 2000, backdropFilter: "blur(8px)"
         }}>
-          <div className="premium-card animate-fade-in" style={{ maxWidth: "480px", width: "90%", padding: "40px 32px" }}>
+          <div className="premium-card animate-fade-in" style={{
+            maxWidth: "480px",
+            width: "90%",
+            padding: "32px 24px",
+            maxHeight: "90vh",
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column"
+          }}>
             
             <div style={{
               width: "70px", height: "70px", borderRadius: "50%",
@@ -1236,7 +1411,7 @@ export default function UnifiedPortal() {
               </span>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
                 <span style={{ color: "var(--text-muted)" }}>신청 동물</span>
-                <strong style={{ color: "var(--text-main)" }}>{bookingSummary.petName} ({bookingSummary.petAge}살)</strong>
+                <strong style={{ color: "var(--text-main)" }}>{bookingSummary.petName} ({bookingSummary.petAge})</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
                 <span style={{ color: "var(--text-muted)" }}>서비스 구분</span>
@@ -1328,8 +1503,8 @@ export default function UnifiedPortal() {
               </div>
             </div>
 
-            <button className="btn btn-primary" onClick={() => setShowBookingSuccessModal(false)} style={{ width: "100%", padding: "14px" }}>
-              확인 및 일정표 돌아가기
+            <button className="btn btn-primary" onClick={handleConfirmReservation} style={{ width: "100%", padding: "14px", fontWeight: "800", fontSize: "0.95rem" }}>
+              예약 확정 및 신청 완료 (돌봄달력 즉시 적용) 🐾
             </button>
           </div>
         </div>
@@ -1440,7 +1615,18 @@ export default function UnifiedPortal() {
           
           {/* Logo brand linked from index.html */}
           <div onClick={() => setActivePortal("home")} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
-            <img src="/logo.png?v=3" alt="윤교품애 로고" style={{ width: "42px", height: "auto", borderRadius: "8px" }} />
+            <div
+              style={{
+                width: "42px",
+                height: "42px",
+                borderRadius: "8px",
+                backgroundImage: "url('/logo.png?v=3')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat"
+              }}
+              aria-label="윤교품애 로고"
+            />
             <div>
               <span style={{ fontSize: "1.4rem", fontWeight: "800", letterSpacing: "-0.5px", color: "var(--text-main)", fontFamily: "Outfit" }}>
                 윤교품애
@@ -1523,8 +1709,7 @@ export default function UnifiedPortal() {
       {/* ============================================================== */}
       {/* 7. PORTAL VIEW A: 🏠 YOONGYOPOOMAE HOME & BLOG */}
       {/* ============================================================== */}
-      {activePortal === "home" && (
-        <main className="animate-fade-in" style={{ flex: 1 }}>
+      <main className="animate-fade-in" style={{ flex: 1, display: activePortal === "home" ? "block" : "none" }}>
           
           {/* Hero Section from index.html (Synthesized with Outfit styling) */}
           <section style={{
@@ -1580,22 +1765,269 @@ export default function UnifiedPortal() {
               </div>
 
               {/* Dynamic rendering of hero.png */}
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <img
-                  src="/hero.png"
-                  alt="윤교품애"
+              <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                <div
                   style={{
-                    maxWidth: "100%",
-                    height: "auto",
+                    width: "100%",
+                    maxWidth: "500px",
+                    aspectRatio: "4/3",
                     borderRadius: "30px",
                     boxShadow: "var(--shadow-lg)",
-                    border: "6px solid white"
+                    border: "6px solid white",
+                    backgroundImage: `url(${heroImageSrc})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundRepeat: "no-repeat"
                   }}
-                  onError={(e) => {
-                    // Fallback to high quality cat image if hero.png has server bundle fetch issue
-                    e.target.src = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800";
-                  }}
+                  aria-label="윤교품애"
                 />
+              </div>
+            </div>
+          </section>
+
+          {/* ============================================================== */}
+          {/* 윤교품애 브랜드 소개 & 요양 케어 전문 서비스 안내 */}
+          {/* ============================================================== */}
+          <section style={{
+            backgroundColor: "var(--bg-secondary)",
+            padding: "80px 0",
+            borderTop: "1.5px solid var(--border-light)",
+            borderBottom: "1.5px solid var(--border-light)"
+          }}>
+            <div className="container" style={{ maxWidth: "1000px" }}>
+              <div style={{ textAlign: "center", marginBottom: "48px" }}>
+                <span style={{
+                  backgroundColor: "var(--primary-orange-light)",
+                  color: "var(--primary-orange)",
+                  fontSize: "0.85rem",
+                  fontWeight: "800",
+                  padding: "8px 16px",
+                  borderRadius: "20px",
+                  display: "inline-block",
+                  letterSpacing: "0.5px"
+                }}>
+                  반려동물 방문 탁묘 및 요양보호 & 회복 케어 전문
+                </span>
+                <h2 style={{
+                  fontSize: "2.4rem",
+                  fontWeight: "800",
+                  color: "var(--text-main)",
+                  marginTop: "16px",
+                  marginBottom: "12px"
+                }}>
+                  윤교품애
+                </h2>
+                <p style={{
+                  fontSize: "1.25rem",
+                  fontWeight: "700",
+                  color: "var(--primary-orange)",
+                  fontStyle: "italic",
+                  margin: 0
+                }}>
+                  "사랑은 손길에서 시작됩니다."
+                </p>
+              </div>
+
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                gap: "32px",
+                marginBottom: "48px"
+              }}>
+                {/* 브랜드 스토리 카드 */}
+                <div className="premium-card" style={{
+                  backgroundColor: "white",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  padding: "40px 32px"
+                }}>
+                  <p style={{
+                    fontSize: "1.05rem",
+                    lineHeight: "1.75",
+                    color: "var(--text-main)",
+                    fontWeight: "600",
+                    margin: 0
+                  }}>
+                    수술 후 회복이 필요한 아이들,<br />
+                    나이가 들어 조금 더 천천히, 더 가까이 돌봄이 필요한 아이들,<br />
+                    혼자 두기 불안했던 마음…<br />
+                    이제 <strong>윤교품애</strong>가 함께할게요.
+                  </p>
+                  <div style={{
+                    marginTop: "24px",
+                    borderTop: "1.5px solid var(--border-light)",
+                    paddingTop: "20px"
+                  }}>
+                    <p style={{
+                      fontSize: "0.92rem",
+                      lineHeight: "1.65",
+                      color: "var(--text-muted)",
+                      margin: 0
+                    }}>
+                      전윤교 대표는 고양이 8마리의 집사 이면서 10년 가까이 거제 유사모에서 300여 마리 고양이 임시보호 & 돌봄 봉사 경험을 바탕으로 아이마다 다른 성격, 속도, 마음의 크기를 잘 알고 있어요. 그동안의 노하우 + 포근한 손길 + 진심 어린 케어로 아이의 몸과 마음을 함께 돌봅니다.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 자격증 정보 카드 */}
+                <div className="premium-card" style={{
+                  backgroundColor: "white",
+                  padding: "40px 32px"
+                }}>
+                  <h4 style={{
+                    fontSize: "1.1rem",
+                    fontWeight: "800",
+                    color: "var(--text-main)",
+                    marginBottom: "18px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}>
+                    🐾 전문 자격 보유
+                  </h4>
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "10px",
+                    marginBottom: "20px"
+                  }}>
+                    {[
+                      "노령펫 케어 자격증",
+                      "반려동물 식품관리사",
+                      "펫시터 1급",
+                      "펫푸드 스타일리스트 1급",
+                      "반려동물 장례지도사 1급",
+                      "반려동물 아로마 기초 강사"
+                    ].map((cert, idx) => (
+                      <div key={idx} style={{
+                        backgroundColor: "var(--bg-secondary)",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "8px",
+                        padding: "10px 12px",
+                        fontSize: "0.82rem",
+                        fontWeight: "750",
+                        color: "var(--text-main)",
+                        textAlign: "center"
+                      }}>
+                        ✅ {cert}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{
+                    backgroundColor: "var(--primary-orange-light)",
+                    borderRadius: "8px",
+                    padding: "12px",
+                    fontSize: "0.85rem",
+                    fontWeight: "800",
+                    color: "var(--primary-orange)",
+                    textAlign: "center",
+                    lineHeight: "1.4"
+                  }}>
+                    단순한 돌봄이 아닌,<br />
+                    아이의 삶의 질을 돌보는 요양 케어에 집중합니다.
+                  </div>
+                </div>
+              </div>
+
+              {/* 대상 및 마음 요약 */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                gap: "32px",
+                marginBottom: "40px"
+              }}>
+                {/* 대상 안내 카드 */}
+                <div className="premium-card" style={{
+                  backgroundColor: "white",
+                  padding: "36px 30px"
+                }}>
+                  <h4 style={{
+                    fontSize: "1.1rem",
+                    fontWeight: "800",
+                    color: "var(--text-main)",
+                    marginBottom: "16px"
+                  }}>
+                    🐶🐱 이런 아이들에게 특히 좋습니다
+                  </h4>
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px"
+                  }}>
+                    {[
+                      "수술 후 회복 기간 돌봄이 필요한 아이",
+                      "노령견 / 노령묘",
+                      "약 복용, 영양 관리가 필요한 아이",
+                      "격리/안정/스트레스 케어가 필요한 아이",
+                      "보호자가 출근/여행으로 곁을 지키기 어려울 때"
+                    ].map((target, idx) => (
+                      <div key={idx} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        fontSize: "0.88rem",
+                        fontWeight: "600",
+                        color: "var(--text-main)"
+                      }}>
+                        <span style={{ color: "var(--primary-orange)", fontSize: "1.1rem" }}>•</span>
+                        {target}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 마음가짐 카드 */}
+                <div className="premium-card" style={{
+                  backgroundColor: "white",
+                  padding: "36px 30px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between"
+                }}>
+                  <div>
+                    <h4 style={{
+                      fontSize: "1.1rem",
+                      fontWeight: "800",
+                      color: "var(--text-main)",
+                      marginBottom: "12px"
+                    }}>
+                      ☁️ 윤교품애의 마음
+                    </h4>
+                    <p style={{
+                      fontSize: "0.9rem",
+                      lineHeight: "1.65",
+                      color: "var(--text-muted)",
+                      margin: 0
+                    }}>
+                      아이들은 “환자”가 아니라 나의 가족, 나의 친구입니다. 그래서 더 천천히, 조심스럽게 아이의 눈을 보고, 숨을 느끼고 필요를 함께 찾아갑니다.
+                    </p>
+                  </div>
+                  <div style={{
+                    marginTop: "20px",
+                    borderTop: "1.5px dashed var(--border-light)",
+                    paddingTop: "16px"
+                  }}>
+                    <p style={{
+                      fontSize: "0.82rem",
+                      fontWeight: "750",
+                      color: "var(--primary-orange)",
+                      margin: "0 0 4px 0",
+                      textAlign: "center"
+                    }}>
+                      “내 아이를 부탁할 수 있는 단 한 곳, 윤교품애.”
+                    </p>
+                    <p style={{
+                      fontSize: "0.82rem",
+                      fontWeight: "750",
+                      color: "var(--text-muted)",
+                      margin: 0,
+                      textAlign: "center"
+                    }}>
+                      “품 안의 온기 그대로, 마음까지 안아주는 케어.”
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -1668,12 +2100,19 @@ export default function UnifiedPortal() {
                       }}
                     >
                       {/* Image Zone with lock banner if restricted */}
-                      <div style={{ height: "200px", overflow: "hidden", position: "relative", backgroundColor: "#e2e8f0" }}>
-                        <img
-                          src={post.image_url}
-                          alt={post.title}
-                          style={{ width: "100%", height: "100%", objectFit: "cover", transition: "var(--transition-smooth)" }}
-                        />
+                      <div
+                        style={{
+                          height: "200px",
+                          position: "relative",
+                          backgroundColor: "#e2e8f0",
+                          backgroundImage: `url(${post.image_url})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
+                          transition: "var(--transition-smooth)"
+                        }}
+                        aria-label={post.title}
+                      >
                         <span style={{
                           position: "absolute", top: "12px", right: "12px",
                           backgroundColor: "rgba(255, 255, 255, 0.9)", color: "var(--text-main)",
@@ -1788,13 +2227,11 @@ export default function UnifiedPortal() {
           </section>
 
         </main>
-      )}
 
       {/* ============================================================== */}
       {/* 8. PORTAL VIEW B: 📅 실시간 캘린더 예약 (보호자 채널) */}
       {/* ============================================================== */}
-      {activePortal === "booking" && (
-        <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0" }}>
+      <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0", display: activePortal === "booking" ? "block" : "none" }}>
           <div className="container" style={{ maxWidth: "1000px" }}>
             
             <div style={{ textAlign: "center", marginBottom: "36px" }}>
@@ -1848,7 +2285,9 @@ export default function UnifiedPortal() {
                           style={{
                             border: "none",
                             borderRadius: "var(--border-radius-sm)",
-                            height: "52px",
+                            minHeight: "56px",
+                            height: "auto",
+                            padding: "6px 2px",
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "center",
@@ -1869,7 +2308,31 @@ export default function UnifiedPortal() {
                         >
                           <span>{dayObj.day}</span>
                           {dayObj.date && dayObj.date.toDateString() === new Date().toDateString() && (
-                            <span style={{ fontSize: "0.6rem", color: isSelected ? "white" : "var(--primary-orange)" }}>오늘</span>
+                            <span style={{ fontSize: "0.6rem", color: isSelected ? "white" : "var(--primary-orange)", marginBottom: "2px" }}>오늘</span>
+                          )}
+                          {/* Display reservation badge(s) */}
+                          {dayObj.date && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", marginTop: "2px" }}>
+                              {sitterReservations
+                                .filter(res => res.visit_date_string === dayObj.date.toDateString())
+                                .map((res, i) => (
+                                  <span key={i} style={{
+                                    fontSize: "0.6rem",
+                                    backgroundColor: isSelected ? "rgba(255, 255, 255, 0.25)" : "var(--primary-orange-light)",
+                                    color: isSelected ? "white" : "var(--primary-orange)",
+                                    padding: "1px 4px",
+                                    borderRadius: "4px",
+                                    fontWeight: "800",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    maxWidth: "90%",
+                                    display: "block"
+                                  }}>
+                                    🐾 {res.pet_name}
+                                  </span>
+                                ))}
+                            </div>
                           )}
                         </button>
                       );
@@ -1878,7 +2341,7 @@ export default function UnifiedPortal() {
                 </div>
 
                 {/* 시간 선택 */}
-                {selectedDate && (
+                {bookingType === "single" && selectedDate && (
                   <div className="premium-card animate-fade-in">
                     <h4 style={{ fontSize: "1rem", fontWeight: "800", marginBottom: "12px", color: "var(--text-main)" }}>
                       ⏰ 돌봄을 진행할 시간대를 골라주세요
@@ -1888,41 +2351,65 @@ export default function UnifiedPortal() {
                     </p>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {TIME_SLOTS_POOL.map(slot => (
-                        <button
-                          key={slot.id}
-                          disabled={slot.isBooked}
-                          onClick={() => setSelectedTimeSlot(slot)}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "16px 20px",
-                            border: "1.5px solid var(--border-light)",
-                            borderRadius: "var(--border-radius-sm)",
-                            cursor: slot.isBooked ? "not-allowed" : "pointer",
-                            backgroundColor: selectedTimeSlot?.id === slot.id 
-                              ? "var(--primary-orange-light)" 
-                              : slot.isBooked ? "var(--bg-primary)" : "var(--bg-secondary)",
-                            borderColor: selectedTimeSlot?.id === slot.id 
-                              ? "var(--primary-orange)" 
-                              : "var(--border-light)",
-                            color: slot.isBooked ? "var(--text-muted)" : "var(--text-main)",
-                            transition: "var(--transition-fast)"
-                          }}
-                        >
-                          <span style={{ fontWeight: "700" }}>⏰ {slot.time}</span>
-                          <span style={{
-                            fontSize: "0.75rem", fontWeight: "800",
-                            backgroundColor: slot.isBooked ? "#e0e0e0" : "var(--success-mint-light)",
-                            color: slot.isBooked ? "var(--text-muted)" : "var(--success-mint)",
-                            padding: "4px 10px", borderRadius: "10px"
-                          }}>
-                            {slot.isBooked ? "예약 불가 ❌" : "예약 가능 🟢"}
-                          </span>
-                        </button>
-                      ))}
+                      {TIME_SLOTS_POOL.map(slot => {
+                        const isBooked = isSlotBooked(slot);
+                        return (
+                          <button
+                            key={slot.id}
+                            disabled={isBooked}
+                            type="button"
+                            onClick={() => setSelectedTimeSlot(slot)}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "16px 20px",
+                              border: "1.5px solid var(--border-light)",
+                              borderRadius: "var(--border-radius-sm)",
+                              cursor: isBooked ? "not-allowed" : "pointer",
+                              backgroundColor: selectedTimeSlot?.id === slot.id 
+                                ? "var(--primary-orange-light)" 
+                                : isBooked ? "var(--bg-primary)" : "var(--bg-secondary)",
+                              borderColor: selectedTimeSlot?.id === slot.id 
+                                ? "var(--primary-orange)" 
+                                : "var(--border-light)",
+                              color: isBooked ? "var(--text-muted)" : "var(--text-main)",
+                              transition: "var(--transition-fast)"
+                            }}
+                          >
+                            <span style={{ fontWeight: "700" }}>⏰ {slot.time}</span>
+                            <span style={{
+                              fontSize: "0.75rem", fontWeight: "800",
+                              backgroundColor: isBooked ? "#e0e0e0" : "var(--success-mint-light)",
+                              color: isBooked ? "var(--text-muted)" : "var(--success-mint)",
+                              padding: "4px 10px", borderRadius: "10px"
+                            }}>
+                              {isBooked ? "예약 불가 ❌" : "예약 가능 🟢"}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
+                  </div>
+                )}
+
+                {bookingType === "single" && !selectedDate && (
+                  <div className="premium-card animate-fade-in" style={{ textAlign: "center", padding: "30px 20px" }}>
+                    <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", margin: 0, fontWeight: "600" }}>
+                      📅 달력에서 원하시는 예약 날짜를 먼저 선택해 주세요.
+                    </p>
+                  </div>
+                )}
+
+                {bookingType === "multi" && (
+                  <div className="premium-card animate-fade-in" style={{ backgroundColor: "var(--primary-orange-light)", border: "1.5px solid var(--primary-orange)" }}>
+                    <h4 style={{ fontSize: "1rem", fontWeight: "800", marginBottom: "8px", color: "var(--primary-orange)" }}>
+                      📅 여러 날 정기 신청 진행 중
+                    </h4>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-main)", lineHeight: "1.5", margin: 0, fontWeight: "500" }}>
+                      여러 날 예약을 신청하실 때는 개별 타임슬롯을 선택하지 않습니다. <br />
+                      우측 입력 폼에서 <strong>원하시는 시작일/종료일 및 구체적인 시간대</strong>를 기재해 주시면 펫시터가 조율을 진행합니다.
+                    </p>
                   </div>
                 )}
 
@@ -1942,7 +2429,7 @@ export default function UnifiedPortal() {
                     <div style={{ display: "flex", gap: "10px" }}>
                       <button
                         type="button"
-                        onClick={() => setIsReturningCustomer(false)}
+                        onClick={() => handleCustomerTypeChange(false)}
                         style={{
                           flex: 1,
                           padding: "14px 10px",
@@ -1963,7 +2450,7 @@ export default function UnifiedPortal() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsReturningCustomer(true)}
+                        onClick={() => handleCustomerTypeChange(true)}
                         style={{
                           flex: 1,
                           padding: "14px 10px",
@@ -2000,29 +2487,235 @@ export default function UnifiedPortal() {
                   </div>
 
 
+                  {/* ===== 예약 방식 선택 (단일 날짜 vs 여러 날 연속/정기) ===== */}
                   <div className="form-group">
-                    <label className="form-label">반려동물 이름 (필수)</label>
+                    <label className="form-label">📅 예약 방식 선택 (필수)</label>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingType("single");
+                          setSelectedDate(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "14px 10px",
+                          borderRadius: "10px",
+                          border: bookingType === "single" ? "2px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                          backgroundColor: bookingType === "single" ? "var(--primary-orange-light)" : "white",
+                          color: bookingType === "single" ? "var(--primary-orange)" : "var(--text-muted)",
+                          fontWeight: "800",
+                          fontSize: "0.9rem",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        📅 단일 날짜 예약
+                        <div style={{ fontSize: "0.72rem", fontWeight: "500", marginTop: "3px", opacity: 0.8 }}>
+                          하루만 지정하여 예약
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingType("multi");
+                          setSelectedDate(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "14px 10px",
+                          borderRadius: "10px",
+                          border: bookingType === "multi" ? "2px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                          backgroundColor: bookingType === "multi" ? "var(--primary-orange-light)" : "white",
+                          color: bookingType === "multi" ? "var(--primary-orange)" : "var(--text-muted)",
+                          fontWeight: "800",
+                          fontSize: "0.9rem",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        📅 여러 날 정기 신청
+                        <div style={{ fontSize: "0.72rem", fontWeight: "500", marginTop: "3px", opacity: 0.8 }}>
+                          시작일~종료일, 매일/격일 등
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ===== 날짜 상세 입력 필드 ===== */}
+                  <div className="form-group">
+                    {bookingType === "multi" ? (
+                      <div style={{
+                        backgroundColor: "var(--bg-secondary)",
+                        padding: "16px",
+                        borderRadius: "12px",
+                        border: "1px solid var(--border-light)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "14px"
+                      }} className="animate-fade-in">
+                        <div style={{ display: "flex", gap: "10px" }}>
+                          <div style={{ flex: 1 }}>
+                            <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: "700" }}>시작일 선택 📅</label>
+                            <input
+                              type="date"
+                              className="form-input"
+                              value={bookingStartDate}
+                              min={new Date().toISOString().split("T")[0]}
+                              onChange={(e) => setBookingStartDate(e.target.value)}
+                              required={bookingType === "multi"}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: "700" }}>종료일 선택 📅</label>
+                            <input
+                              type="date"
+                              className="form-input"
+                              value={bookingEndDate}
+                              min={bookingStartDate || new Date().toISOString().split("T")[0]}
+                              onChange={(e) => setBookingEndDate(e.target.value)}
+                              required={bookingType === "multi"}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: "700" }}>방문 주기 선택</label>
+                          <select
+                            className="form-input"
+                            value={bookingFrequency}
+                            onChange={(e) => setBookingFrequency(e.target.value)}
+                          >
+                            <option value="daily">매일 (Daily)</option>
+                            <option value="every_other">격일 (Every other day)</option>
+                            <option value="custom">직접 지정/기타</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: "0.85rem", color: "var(--warning-coral)", fontWeight: "750" }}>
+                            * 1. 방문 원하시는 날짜를 적어 주세요 (필수)
+                          </label>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                            시작일.종료일.매일.격일 등 상세히 적어주세요.
+                          </div>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={bookingDateText}
+                            onChange={(e) => setBookingDateText(e.target.value)}
+                            placeholder="예: 5/27~5/30 매일 방문 희망 (최대 100자)"
+                            maxLength={100}
+                            required={bookingType === "multi"}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        backgroundColor: "var(--primary-orange-light)",
+                        padding: "12px 14px",
+                        borderRadius: "10px",
+                        border: "1.5px solid var(--primary-orange)",
+                        color: "var(--primary-orange)",
+                        fontSize: "0.85rem",
+                        fontWeight: "750"
+                      }} className="animate-fade-in">
+                        👉 <strong>왼쪽 돌봄 일정표</strong>에서 원하시는 날짜를 클릭하여 선택해 주세요.
+                        {selectedDate && (
+                          <div style={{ marginTop: "6px", color: "var(--text-main)", fontSize: "0.9rem" }}>
+                            선택된 날짜: <strong>{selectedDate.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}</strong>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ===== 방문 희망 시간 입력 필드 ===== */}
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: "var(--warning-coral)", fontWeight: "750" }}>
+                      * 2. 방문 원하시는 시간 적어주세요 (필수)
+                    </label>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                      ※ 다른 돌봄 일정이 있을 시 방문 시간이 다소 조정될 수 있습니다.
+                    </div>
                     <input
                       type="text"
                       className="form-input"
-                      value={petName}
-                      onChange={(e) => setPetName(e.target.value)}
-                      placeholder="예: 치즈, 먼지, 레오"
+                      value={bookingTimeText}
+                      onChange={(e) => setBookingTimeText(e.target.value)}
+                      placeholder={bookingType === "single" && selectedTimeSlot ? `선택된 시간: ${selectedTimeSlot.time} (직접 수정/추가 기입 가능)` : "예: 오후 2시 선호합니다, 또는 오전 11시 ~ 오후 1시 사이 (최대 100자)"}
+                      maxLength={100}
                       required
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label">반려동물 나이 (필수)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={petAge}
-                      onChange={(e) => setPetAge(e.target.value)}
-                      placeholder="숫자 기입 (예: 14)"
-                      min="0"
-                      required
-                    />
+                  {/* ===== 반려동물 마릿수 & 세부 정보 필드 ===== */}
+                  <div style={{
+                    backgroundColor: "var(--bg-secondary)",
+                    padding: "16px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--border-light)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "14px"
+                  }}>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <div style={{ flex: 1 }}>
+                        <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: "700" }}>대표 반려동물 이름 (달력 표기용)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={petName}
+                          onChange={(e) => setPetName(e.target.value)}
+                          placeholder="예: 치즈, 먼지, 로니"
+                          required
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: "700" }}>반려동물 마릿수 (필수)</label>
+                        <select
+                          className="form-input"
+                          value={petCount}
+                          onChange={(e) => setPetCount(e.target.value)}
+                        >
+                          <option value="1">1마리</option>
+                          <option value="2">2마리</option>
+                          <option value="3">3마리</option>
+                          <option value="4">4마리</option>
+                          <option value="5+">5마리 이상</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {bookingType === "single" && (
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: "0.8rem", fontWeight: "700" }}>대표 반려동물 나이 (필수)</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={petAge}
+                          onChange={(e) => setPetAge(e.target.value)}
+                          placeholder="숫자 기입 (예: 14)"
+                          min="0"
+                          required={bookingType === "single"}
+                        />
+                      </div>
+                    )}
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ color: "var(--warning-coral)", fontWeight: "750" }}>
+                        * 3. 아이들 마릿수, 이름, 나이, 성별, 중성화 여부, 특징 등 (필수)
+                      </label>
+                      <textarea
+                        className="form-input"
+                        style={{ minHeight: "120px", resize: "vertical", fontFamily: "inherit" }}
+                        value={petDetailsText}
+                        onChange={(e) => setPetDetailsText(e.target.value)}
+                        placeholder="예:&#13;1. 치즈 (5살, 남아, 중성화 완료) - 신부전 약 급여 필요, 사람을 아주 좋아함&#13;2. 먼지 (2살, 여아, 중성화 완료) - 겁이 많아 숨어있을 수 있으니 기본케어 위주로 해주세요.&#13;(최대 2000자)"
+                        maxLength={2000}
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div className="form-group">
@@ -2552,6 +3245,22 @@ export default function UnifiedPortal() {
                           style={{ fontSize: "0.83rem" }}
                         />
                       </div>
+
+                      {(petPersonality.includes("겁이 많음") || petPersonality.includes("공격성 있음")) && (
+                        <div style={{
+                          width: "100%",
+                          marginTop: "10px",
+                          color: "var(--warning-coral)",
+                          fontSize: "0.8rem",
+                          fontWeight: "700",
+                          backgroundColor: "var(--warning-coral-light)",
+                          border: "1px dashed var(--warning-coral)",
+                          padding: "10px 12px",
+                          borderRadius: "8px"
+                        }} className="animate-fade-in">
+                          *겁이 많거나 공격성이 있는경우 아이의 스트레스를 고려 하여 기본케어(급여,물,화장실관리)만 진행될 수 있습니다
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2640,13 +3349,12 @@ export default function UnifiedPortal() {
             </div>
           </div>
         </main>
-      )}
 
       {/* ============================================================== */}
       {/* 9. PORTAL VIEW C: 🔒 펫시터 전용 관리 대시보드 (Admin Panel) */}
       {/* ============================================================== */}
-      {activePortal === "sitter" && activeUser && activeUser.role === "admin" && (
-        <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0" }}>
+      {activeUser && activeUser.role === "admin" && (
+        <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0", display: activePortal === "sitter" ? "block" : "none" }}>
           <div className="container">
             
             {/* Header section */}

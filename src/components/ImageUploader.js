@@ -349,14 +349,13 @@ export default function ImageUploader({ postId, userId, isOwnerOrAdmin }) {
                   borderRadius: "var(--border-radius-sm)",
                   overflow: "hidden",
                   border: "1px solid var(--border-light)",
-                  group: "true"
+                  group: "true",
+                  backgroundImage: `url(${img.image_url})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat"
                 }}
               >
-                <img
-                  src={img.image_url}
-                  alt="Care Gallery"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
                 
                 {/* Delete Hover Button */}
                 <button
