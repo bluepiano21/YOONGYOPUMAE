@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import ImageUploader from "../components/ImageUploader";
+import JournalMediaUploader from "../components/JournalMediaUploader";
 
 // ==============================================================
 // 1. DUMMY & SEED DATA (Conforming to blog_schema & PRD)
@@ -430,11 +431,24 @@ export default function UnifiedPortal() {
   const [checklistReq3, setChecklistReq3] = useState(false);
   
   // Semi-automatic Care Journal generator states
-  const [journalMeal, setJournalMeal] = useState("");
-  const [journalActivity, setJournalActivity] = useState("");
-  const [journalBowel, setJournalBowel] = useState("");
+  const [journalMeals, setJournalMeals] = useState([]);
+  const [journalActivities, setJournalActivities] = useState([]);
+  const [journalBowels, setJournalBowels] = useState([]);
+
+  const toggleJournalMeal = (chip) => {
+    setJournalMeals(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]);
+  };
+  const toggleJournalActivity = (chip) => {
+    setJournalActivities(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]);
+  };
+  const toggleJournalBowel = (chip) => {
+    setJournalBowels(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]);
+  };
   const [journalCustomText, setJournalCustomText] = useState("");
   const [journalPreviewText, setJournalPreviewText] = useState("");
+  const [careJournals, setCareJournals] = useState([]);
+  const [currentJournalMedia, setCurrentJournalMedia] = useState([]);
+  const [isCareJournalTableMissing, setIsCareJournalTableMissing] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -460,10 +474,12 @@ export default function UnifiedPortal() {
         setIsLoggedIn(false);
         setActiveUser(null);
         fetchSupabasePosts();
+        fetchSupabaseJournals();
       }
     });
 
     fetchSupabasePosts();
+    fetchSupabaseJournals();
 
     return () => {
       subscription.unsubscribe();
@@ -523,17 +539,56 @@ export default function UnifiedPortal() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-generate care journal template text in real-time
+  // Auto-generate care journal template text in real-time or load from existing
   useEffect(() => {
-    const mealText = journalMeal ? `[식사: ${journalMeal}]` : "[식사: 미기입]";
-    const activityText = journalActivity ? `[활동: ${journalActivity}]` : "[활동: 미기입]";
-    const bowelText = journalBowel ? `[배변: ${journalBowel}]` : "[배변: 미기입]";
+    const reservation = sitterReservations[activeReservationIndex];
+    if (!reservation) return;
+    
+    const existingJournal = careJournals.find(j => Number(j.reservation_id) === Number(reservation.id));
+    if (existingJournal) {
+      setJournalPreviewText(existingJournal.additional_notes || "");
+      return;
+    }
+
+    const mealText = journalMeals.length > 0 ? `[식사: ${journalMeals.join(", ")}]` : "[식사: 미기입]";
+    const activityText = journalActivities.length > 0 ? `[활동: ${journalActivities.join(", ")}]` : "[활동: 미기입]";
+    const bowelText = journalBowels.length > 0 ? `[배변: ${journalBowels.join(", ")}]` : "[배변: 미기입]";
     const custom = journalCustomText ? `\n💬 추가 메모: ${journalCustomText}` : "";
     
     const timeNow = new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
     
-    setJournalPreviewText(`🐾 윤교품애 돌봄 보고서 (${timeNow} 기준)\n-----------------------------\n${mealText} ${activityText} ${bowelText}${custom}\n\n전윤교 펫시터가 정성을 다해 아이를 보살폈습니다. 항상 믿고 맡겨주셔서 감사드립니다! ♥`);
-  }, [journalMeal, journalActivity, journalBowel, journalCustomText]);
+    setJournalPreviewText(`🐾 윤교품애 돌봄 보고서 (${timeNow} Guide)\n-----------------------------\n${mealText} ${activityText} ${bowelText}${custom}\n\n전윤교 펫시터가 정성을 다해 아이를 보살폈습니다. 항상 믿고 맡겨주셔서 감사드립니다! ♥`);
+  }, [journalMeals, journalActivities, journalBowels, journalCustomText, activeReservationIndex, careJournals, sitterReservations]);
+
+  // Load or reset the form states when the active reservation index shifts
+  useEffect(() => {
+    const reservation = sitterReservations[activeReservationIndex];
+    if (!reservation) return;
+
+    const existingJournal = careJournals.find(j => Number(j.reservation_id) === Number(reservation.id));
+    if (existingJournal) {
+      const kw = existingJournal.keywords || [];
+      const mealChips = ["완식", "일부 남김", "사료 거부", "약 복용 완료"];
+      const actChips = ["실내 놀이 완료", "산책 완료 (20분)", "컨디션 좋음", "무기력함"];
+      const bowelChips = ["소변 양호", "대변 양호", "설사/묽은변", "배변 없음"];
+
+      const mealVals = kw.filter(k => mealChips.includes(k));
+      const actVals = kw.filter(k => actChips.includes(k));
+      const bowelVals = kw.filter(k => bowelChips.includes(k));
+
+      setJournalMeals(mealVals);
+      setJournalActivities(actVals);
+      setJournalBowels(bowelVals);
+      setCurrentJournalMedia(existingJournal.photos || []);
+      setJournalCustomText("");
+    } else {
+      setJournalMeals([]);
+      setJournalActivities([]);
+      setJournalBowels([]);
+      setJournalCustomText("");
+      setCurrentJournalMedia([]);
+    }
+  }, [activeReservationIndex, careJournals, sitterReservations]);
 
   const fetchSupabasePosts = async () => {
     try {
@@ -547,6 +602,29 @@ export default function UnifiedPortal() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const fetchSupabaseJournals = async () => {
+    try {
+      const { data: fetchedJournals, error } = await supabase
+        .from("care_journals")
+        .select(`*`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        if (error.code === "PGRST116" || error.code === "PGRST205" || error.message?.includes("does not exist") || error.message?.includes("not found") || error.status === 404) {
+          setIsCareJournalTableMissing(true);
+        }
+        throw error;
+      }
+
+      if (fetchedJournals) {
+        setCareJournals(fetchedJournals);
+        setIsCareJournalTableMissing(false);
+      }
+    } catch (e) {
+      console.error("돌봄일지 가져오기 실패 (임시 로컬 저장 모드 활성화):", e);
     }
   };
 
@@ -946,13 +1024,90 @@ export default function UnifiedPortal() {
     showToast("🟢 돌봄이 정식 승인되어 시작되었습니다. 현장 모니터링이 시작됩니다.");
   };
 
-  const handleFinishCare = () => {
+  const handleFinishCare = async () => {
+    const reservation = sitterReservations[activeReservationIndex];
+    if (!reservation) return;
+
+    // 1. 중복 제출 체크 (Frontend duplicate submission prevent check)
+    const alreadyExistsLocal = careJournals.some(j => Number(j.reservation_id) === Number(reservation.id));
+    if (alreadyExistsLocal) {
+      showToast("❌ [중복 방지] 이미 해당 예약에 대한 돌봄 일지가 제출되었습니다.");
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        // Double check on DB to prevent race condition
+        const { data: dbCheck, error: checkError } = await supabase
+          .from("care_journals")
+          .select("id")
+          .eq("reservation_id", reservation.id);
+        
+        if (checkError) throw checkError;
+        if (dbCheck && dbCheck.length > 0) {
+          showToast("❌ [DB 중복 방지] 이미 해당 예약에 대한 돌봄 일지가 데이터베이스에 존재합니다.");
+          return;
+        }
+
+        const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
+
+        const { data: insertData, error: insertError } = await supabase
+          .from("care_journals")
+          .insert([
+            {
+              reservation_id: reservation.id,
+              photos: currentJournalMedia,
+              keywords: keywords,
+              additional_notes: journalPreviewText,
+            }
+          ])
+          .select();
+
+        if (insertError) throw insertError;
+
+        showToast("🏁 돌봄이 완료되었으며, 작성된 돌봄 일지가 DB에 저장되었습니다!");
+        fetchSupabaseJournals();
+      } catch (err) {
+        console.error("돌봄일지 DB 저장 실패 (임시 로컬 저장 전환):", err);
+        showToast("⚠️ Supabase에 'care_journals' 테이블이 없거나 오류가 있어 로컬 메모리에 저장되었습니다. (SQL 스키마 적용 필요)");
+        setIsCareJournalTableMissing(true);
+        
+        // Local state fallback
+        const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
+
+        const newJournal = {
+          id: Date.now(),
+          reservation_id: reservation.id,
+          photos: currentJournalMedia,
+          keywords: keywords,
+          additional_notes: journalPreviewText,
+          created_at: new Date().toISOString()
+        };
+
+        setCareJournals(prev => [newJournal, ...prev]);
+      }
+    } else {
+      // Simulation mode
+      const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
+
+      const newJournal = {
+        id: Date.now(),
+        reservation_id: reservation.id,
+        photos: currentJournalMedia,
+        keywords: keywords,
+        additional_notes: journalPreviewText,
+        created_at: new Date().toISOString()
+      };
+
+      setCareJournals(prev => [newJournal, ...prev]);
+      showToast("🏁 [데모 시뮬레이션] 돌봄 일지가 등록되었으며 예약이 성공적으로 종료되었습니다.");
+    }
+
     setSitterReservations((prev) => {
       const next = [...prev];
       next[activeReservationIndex].status = "completed";
       return next;
     });
-    showToast("🏁 돌봄이 종료되었습니다. 작성된 돌봄 일지를 보호자님께 공유할 수 있습니다.");
   };
 
   const handleCopyJournalLink = () => {
@@ -4424,137 +4579,272 @@ export default function UnifiedPortal() {
               </div>
 
               {/* Right Side: 3.3 간편 일지 작성 및 정리 (Easy Care Journal Generator) */}
-              <div style={{ flex: "1 1 450px", display: "flex", flexDirection: "column", gap: "20px" }}>
-                
-                <h3 style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--text-main)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px", margin: 0 }}>
-                  ✍️ AI 반자동 돌봄 일지 빌더
-                </h3>
+              {(() => {
+                const existingJournal = careJournals.find(j => Number(j.reservation_id) === Number(sitterReservations[activeReservationIndex]?.id));
+                const hasJournal = !!existingJournal;
+                return (
+                  <div style={{ flex: "1 1 450px", display: "flex", flexDirection: "column", gap: "20px" }}>
+                    
+                    <h3 style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--text-main)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px", margin: 0 }}>
+                      ✍️ AI 반자동 돌봄 일지 빌더
+                    </h3>
 
-                <div className="premium-card" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                  
-                  {/* Category A: Meal options */}
-                  <div>
-                    <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
-                      🍲 식사 급여 상태
-                    </span>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {["완식", "일부 남김", "사료 거부", "약 복용 완료"].map((chip) => (
-                        <button
-                          key={chip}
-                          onClick={() => setJournalMeal(chip)}
-                          style={{
-                            padding: "8px 14px", border: "1.5px solid var(--border-light)",
-                            borderRadius: "var(--border-radius-sm)", fontSize: "0.8rem", fontWeight: "700",
-                            backgroundColor: journalMeal === chip ? "var(--primary-orange)" : "white",
-                            color: journalMeal === chip ? "white" : "var(--text-muted)",
-                            cursor: "pointer", transition: "var(--transition-fast)"
-                          }}
-                        >
-                          {chip}
-                        </button>
-                      ))}
+                    <div className="premium-card" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      
+                      {isCareJournalTableMissing && isSupabaseConfigured && (
+                        <div style={{
+                          backgroundColor: "rgba(244, 67, 54, 0.08)",
+                          border: "1.5px solid var(--warning-coral)",
+                          padding: "14px 18px",
+                          borderRadius: "var(--border-radius-md)",
+                          color: "var(--warning-coral)",
+                          fontSize: "0.85rem",
+                          lineHeight: "1.5"
+                        }}>
+                          <strong style={{ display: "block", marginBottom: "4px" }}>⚠️ Supabase 데이터베이스 설정 필요</strong>
+                          현재 연결된 Supabase 프로젝트에 <code style={{ backgroundColor: "rgba(0,0,0,0.06)", padding: "2px 4px", borderRadius: "4px" }}>care_journals</code> 테이블이 존재하지 않습니다.<br />
+                          <span style={{ fontWeight: "600" }}>해결 방법:</span> 프로젝트 루트의 <code style={{ backgroundColor: "rgba(0,0,0,0.06)", padding: "2px 4px", borderRadius: "4px" }}>supabase_schema.sql</code> 파일 42~51행의 SQL 구문을 복사하여 Supabase Dashboard의 SQL Editor에서 실행해 주세요. (현재는 로컬 시뮬레이션 모드로 작동 중입니다)
+                        </div>
+                      )}
+
+                      {hasJournal && (
+                        <div style={{
+                          backgroundColor: "rgba(76, 175, 80, 0.1)",
+                          border: "1.5px solid var(--success-mint)",
+                          padding: "14px 18px",
+                          borderRadius: "var(--border-radius-md)",
+                          color: "var(--success-mint)",
+                          fontWeight: "700",
+                          fontSize: "0.85rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px"
+                        }}>
+                          <span>✓ 이미 이 예약의 돌봄 일지가 제출되었습니다. 중복 작성이 방지됩니다.</span>
+                        </div>
+                      )}
+
+                      {/* Category A: Meal options */}
+                      <div>
+                        <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                          🍲 식사 급여 상태 (중복 선택 가능)
+                        </span>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          {["완식", "일부 남김", "사료 거부", "약 복용 완료"].map((chip) => {
+                            const isSelected = journalMeals.includes(chip);
+                            return (
+                              <button
+                                key={chip}
+                                onClick={() => !hasJournal && toggleJournalMeal(chip)}
+                                disabled={hasJournal}
+                                style={{
+                                  padding: "8px 14px", border: "1.5px solid var(--border-light)",
+                                  borderRadius: "var(--border-radius-sm)", fontSize: "0.8rem", fontWeight: "700",
+                                  backgroundColor: isSelected ? "var(--primary-orange)" : "white",
+                                  color: isSelected ? "white" : "var(--text-muted)",
+                                  cursor: hasJournal ? "not-allowed" : "pointer", transition: "var(--transition-fast)",
+                                  opacity: hasJournal && !isSelected ? 0.5 : 1
+                                }}
+                              >
+                                {chip}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Category B: Activity options */}
+                      <div>
+                        <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                          🎾 활동 및 놀이 상태 (중복 선택 가능)
+                        </span>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          {["실내 놀이 완료", "산책 완료 (20분)", "컨디션 좋음", "무기력함"].map((chip) => {
+                            const isSelected = journalActivities.includes(chip);
+                            return (
+                              <button
+                                key={chip}
+                                onClick={() => !hasJournal && toggleJournalActivity(chip)}
+                                disabled={hasJournal}
+                                style={{
+                                  padding: "8px 14px", border: "1.5px solid var(--border-light)",
+                                  borderRadius: "var(--border-radius-sm)", fontSize: "0.8rem", fontWeight: "700",
+                                  backgroundColor: isSelected ? "var(--primary-orange)" : "white",
+                                  color: isSelected ? "white" : "var(--text-muted)",
+                                  cursor: hasJournal ? "not-allowed" : "pointer", transition: "var(--transition-fast)",
+                                  opacity: hasJournal && !isSelected ? 0.5 : 1
+                                }}
+                              >
+                                {chip}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Category C: Bowel options */}
+                      <div>
+                        <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                          💩 배변 상태 점검 (중복 선택 가능)
+                        </span>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          {["소변 양호", "대변 양호", "설사/묽은변", "배변 없음"].map((chip) => {
+                            const isSelected = journalBowels.includes(chip);
+                            return (
+                              <button
+                                key={chip}
+                                onClick={() => !hasJournal && toggleJournalBowel(chip)}
+                                disabled={hasJournal}
+                                style={{
+                                  padding: "8px 14px", border: "1.5px solid var(--border-light)",
+                                  borderRadius: "var(--border-radius-sm)", fontSize: "0.8rem", fontWeight: "700",
+                                  backgroundColor: isSelected ? "var(--primary-orange)" : "white",
+                                  color: isSelected ? "white" : "var(--text-muted)",
+                                  cursor: hasJournal ? "not-allowed" : "pointer", transition: "var(--transition-fast)",
+                                  opacity: hasJournal && !isSelected ? 0.5 : 1
+                                }}
+                              >
+                                {chip}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Textarea for custom details */}
+                      <div className="form-group">
+                        <label className="form-label">✍️ 펫시터 수동 코멘트 추가</label>
+                        <textarea
+                          rows="3"
+                          className="form-input"
+                          value={journalCustomText}
+                          onChange={(e) => setJournalCustomText(e.target.value)}
+                          disabled={hasJournal}
+                          placeholder={hasJournal ? "제출 완료되어 수정할 수 없습니다." : "특이사항이나 아이에게 해주고 싶은 말을 적으세요. 실시간으로 조합되어 완성됩니다."}
+                          style={{ resize: "vertical", cursor: hasJournal ? "not-allowed" : "text" }}
+                        ></textarea>
+                      </div>
+
+                      {/* Image/Video Uploader for Care Journal */}
+                      {!hasJournal ? (
+                        <JournalMediaUploader
+                          reservationId={sitterReservations[activeReservationIndex]?.id}
+                          value={currentJournalMedia}
+                          onChange={setCurrentJournalMedia}
+                        />
+                      ) : (
+                        existingJournal.photos && existingJournal.photos.length > 0 && (
+                          <div style={{
+                            backgroundColor: "var(--bg-secondary)",
+                            padding: "20px",
+                            borderRadius: "var(--border-radius-md)",
+                            border: "1.5px solid var(--border-light)"
+                          }}>
+                            <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                              📸 첨부된 현장 미디어 사진/동영상 ({existingJournal.photos.length}건)
+                            </span>
+                            <div style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+                              gap: "10px"
+                            }}>
+                              {existingJournal.photos.map((url, idx) => {
+                                const isVideo = url.endsWith(".mp4") || url.endsWith(".webm") || url.includes("mov_bbb") || url.includes("movie.mp4");
+                                return (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      position: "relative",
+                                      width: "100%",
+                                      height: "80px",
+                                      borderRadius: "6px",
+                                      overflow: "hidden",
+                                      border: "1px solid var(--border-light)",
+                                      backgroundColor: "black",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
+                                  >
+                                    {isVideo ? (
+                                      <video
+                                        src={url}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                        controls
+                                      />
+                                    ) : (
+                                      <img
+                                        src={url}
+                                        alt="첨부파일"
+                                        style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
+                                        onClick={() => window.open(url, "_blank")}
+                                      />
+                                    )}
+                                    {isVideo && (
+                                      <div style={{
+                                        position: "absolute",
+                                        pointerEvents: "none",
+                                        backgroundColor: "rgba(0,0,0,0.5)",
+                                        borderRadius: "50%",
+                                        width: "24px",
+                                        height: "24px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "white",
+                                        fontSize: "0.7rem"
+                                      }}>
+                                        ▶
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )
+                      )}
+
+                      {/* Dynamic Journal Template Output */}
+                      <div style={{
+                        backgroundColor: "var(--bg-primary)",
+                        padding: "20px",
+                        borderRadius: "var(--border-radius-md)",
+                        border: "1.5px solid var(--border-light)"
+                      }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--primary-orange)", display: "block", marginBottom: "10px" }}>
+                          📱 보호자 전송용 보고서 {hasJournal ? "최종 제출본" : "실시간 미리보기"} (키워드 조합형)
+                        </span>
+                        <pre style={{
+                          whiteSpace: "pre-wrap",
+                          fontFamily: "var(--font-outfit)",
+                          fontSize: "0.85rem",
+                          color: "var(--text-main)",
+                          lineHeight: "1.6",
+                          margin: 0,
+                          backgroundColor: "white",
+                          padding: "16px",
+                          borderRadius: "8px",
+                          border: "1px solid var(--border-light)"
+                        }}>
+                          {journalPreviewText}
+                        </pre>
+                      </div>
+
+                      {/* Copy Link Share Clipboard button */}
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleCopyJournalLink}
+                        style={{ width: "100%", padding: "14px 20px" }}
+                      >
+                        🔗 카카오톡/문자 공유 링크 클립보드 복사
+                      </button>
+
                     </div>
+
                   </div>
-
-                  {/* Category B: Activity options */}
-                  <div>
-                    <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
-                      🎾 활동 및 놀이 상태
-                    </span>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {["실내 놀이 완료", "산책 완료 (20분)", "컨디션 좋음", "무기력함"].map((chip) => (
-                        <button
-                          key={chip}
-                          onClick={() => setJournalActivity(chip)}
-                          style={{
-                            padding: "8px 14px", border: "1.5px solid var(--border-light)",
-                            borderRadius: "var(--border-radius-sm)", fontSize: "0.8rem", fontWeight: "700",
-                            backgroundColor: journalActivity === chip ? "var(--primary-orange)" : "white",
-                            color: journalActivity === chip ? "white" : "var(--text-muted)",
-                            cursor: "pointer", transition: "var(--transition-fast)"
-                          }}
-                        >
-                          {chip}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Category C: Bowel options */}
-                  <div>
-                    <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
-                      💩 배변 상태 점검
-                    </span>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {["소변 양호", "대변 양호", "설사/묽은변", "배변 없음"].map((chip) => (
-                        <button
-                          key={chip}
-                          onClick={() => setJournalBowel(chip)}
-                          style={{
-                            padding: "8px 14px", border: "1.5px solid var(--border-light)",
-                            borderRadius: "var(--border-radius-sm)", fontSize: "0.8rem", fontWeight: "700",
-                            backgroundColor: journalBowel === chip ? "var(--primary-orange)" : "white",
-                            color: journalBowel === chip ? "white" : "var(--text-muted)",
-                            cursor: "pointer", transition: "var(--transition-fast)"
-                          }}
-                        >
-                          {chip}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Textarea for custom details */}
-                  <div className="form-group">
-                    <label className="form-label">✍️ 펫시터 수동 코멘트 추가</label>
-                    <textarea
-                      rows="3"
-                      className="form-input"
-                      value={journalCustomText}
-                      onChange={(e) => setJournalCustomText(e.target.value)}
-                      placeholder="특이사항이나 아이에게 해주고 싶은 말을 적으세요. 실시간으로 조합되어 완성됩니다."
-                      style={{ resize: "vertical" }}
-                    ></textarea>
-                  </div>
-
-                  {/* Dynamic Journal Template Output */}
-                  <div style={{
-                    backgroundColor: "var(--bg-primary)",
-                    padding: "20px",
-                    borderRadius: "var(--border-radius-md)",
-                    border: "1.5px solid var(--border-light)"
-                  }}>
-                    <span style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--primary-orange)", display: "block", marginBottom: "10px" }}>
-                      📱 보호자 전송용 보고서 실시간 미리보기 (키워드 조합형)
-                    </span>
-                    <pre style={{
-                      whiteSpace: "pre-wrap",
-                      fontFamily: "var(--font-outfit)",
-                      fontSize: "0.85rem",
-                      color: "var(--text-main)",
-                      lineHeight: "1.6",
-                      margin: 0,
-                      backgroundColor: "white",
-                      padding: "16px",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border-light)"
-                    }}>
-                      {journalPreviewText}
-                    </pre>
-                  </div>
-
-                  {/* Copy Link Share Clipboard button */}
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleCopyJournalLink}
-                    style={{ width: "100%", padding: "14px 20px" }}
-                  >
-                    🔗 카카오톡/문자 공유 링크 클립보드 복사
-                  </button>
-
-                </div>
-
-              </div>
+                );
+              })()}
 
             </div>
 
