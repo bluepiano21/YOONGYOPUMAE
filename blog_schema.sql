@@ -15,7 +15,7 @@ CREATE TABLE public.profiles (
     email TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
     full_name TEXT NOT NULL,
-    role TEXT DEFAULT 'member' CHECK (role IN ('member', 'vip', 'admin')),
+    role TEXT DEFAULT 'member' CHECK (role IN ('member', 'vip', 'sitter', 'admin')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -59,6 +59,7 @@ BEGIN
         COALESCE(new.raw_user_meta_data->>'full_name', '새로운 회원'),
         CASE 
             WHEN new.email = 'sitter@yenu.com' THEN 'admin'
+            WHEN new.email = 'petsitter@yenu.com' THEN 'sitter'
             ELSE 'member'
         END
     );
@@ -102,7 +103,7 @@ USING (
     auth.uid() IS NOT NULL AND EXISTS (
         SELECT 1 FROM public.profiles 
         WHERE profiles.id = auth.uid() 
-          AND profiles.role IN ('member', 'vip', 'admin')
+          AND profiles.role IN ('member', 'vip', 'sitter', 'admin')
     )
 );
 

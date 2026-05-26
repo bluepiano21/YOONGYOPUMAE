@@ -10,16 +10,22 @@ import ImageUploader from "../components/ImageUploader";
 // ==============================================================
 
 const DEMO_USERS = {
-  vip: {
+  member: {
     id: "22222222-2222-2222-2222-222222222222",
     username: "user_kim",
-    full_name: "김미선 회원 (VIP)",
-    role: "vip"
+    full_name: "김미선 회원 (일반회원)",
+    role: "member"
+  },
+  sitter: {
+    id: "33333333-3333-3333-3333-333333333333",
+    username: "sitter_jeon",
+    full_name: "전윤교 펫시터 (펫시터)",
+    role: "sitter"
   },
   admin: {
     id: "11111111-1111-1111-1111-111111111111",
-    username: "sitter_jeon",
-    full_name: "전윤교 펫시터 (관리자)",
+    username: "admin_yenu",
+    full_name: "예누 관리자 (Admin)",
     role: "admin"
   }
 };
@@ -200,7 +206,7 @@ export default function UnifiedPortal() {
   const [activeUser, setActiveUser] = useState(null);
   const [toast, setToast] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState("vip"); // 'vip' or 'admin' for demo simulation
+  const [selectedRole, setSelectedRole] = useState("member"); // 'member', 'sitter' or 'admin' for demo simulation
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- A. HOME PORTAL / BLOG / LOCKED POST STATES ---
@@ -213,6 +219,7 @@ export default function UnifiedPortal() {
   const [newIsRestricted, setNewIsRestricted] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [expandedPostId, setExpandedPostId] = useState(null);
+  const [detailPostId, setDetailPostId] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
   const [heroImageSrc, setHeroImageSrc] = useState("/hero.png");
   
@@ -404,8 +411,8 @@ export default function UnifiedPortal() {
     
     return {
       basePrice: base * daysMultiplier,
-      additionalFee: extra * daysMultiplier,
-      totalPrice: (base + extra) * daysMultiplier,
+      additionalFee: extra, // 추가 요금은 일수를 곱하지 않고 1회성으로 계산
+      totalPrice: (base * daysMultiplier) + extra, // 기본료에만 선택일수를 곱하고 추가요금은 합산
       daysCount: daysMultiplier
     };
   };
@@ -460,6 +467,17 @@ export default function UnifiedPortal() {
     return () => {
       subscription.unsubscribe();
     };
+  }, []);
+
+  // URL에서 post_id 감지하여 상세 페이지 전용 뷰 띄우기
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const pid = params.get("post_id");
+      if (pid) {
+        setDetailPostId(pid);
+      }
+    }
   }, []);
 
   // Handle fallback hero image loading check (prevents React 19 image preload issues)
@@ -664,10 +682,7 @@ export default function UnifiedPortal() {
         showToast("세대 현관 도어락 비밀번호를 입력해 주세요.");
         return;
       }
-      if (!entryMethodDetail.trim()) {
-        showToast("상세 출입 방법 안내를 입력해 주세요.");
-        return;
-      }
+
       if (!privacyAgreement) {
         showToast("개인정보 수집 및 이용(방문탁묘 용도) 동의는 필수입니다.");
         return;
@@ -948,20 +963,23 @@ export default function UnifiedPortal() {
   // --- A. BLOG PORTAL HANDLERS ---
   const handlePostCardClick = (post) => {
     // If restricted and not logged in (or logged in but not VIP/Admin/Member)
-    const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "admin");
+    const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "sitter" || activeUser.role === "admin");
     if (post.is_restricted && !hasAccess) {
       setRestrictedPostTitle(post.title);
       setShowRestrictedModal(true);
     } else {
-      setExpandedPostId(expandedPostId === post.id ? null : post.id);
+      window.open(`/?post_id=${post.id}`, '_blank');
     }
   };
 
   const handleDeletePost = async (e, post) => {
     e.stopPropagation();
-    const isOwner = activeUser && activeUser.role === "admin"; // Admin only for posts in blog_schema
+    const isOwner = activeUser && (
+      activeUser.role === "admin" || 
+      (post.user_id && post.user_id === activeUser.id)
+    );
     if (!isOwner) {
-      showToast("🔒 RLS 권한 위반: 포스트 삭제 권한은 관리자(admin)만 갖습니다.");
+      showToast("🔒 RLS 권한 위반: 포스트 삭제 권한은 글 작성자 또는 관리자(admin)만 갖습니다.");
       return;
     }
 
@@ -1013,6 +1031,18 @@ export default function UnifiedPortal() {
     const imageUrl = newImageUrl || "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800";
 
     if (editingPostId) {
+      // 1) 대상 포스트 가져오기
+      const targetPost = posts.find(p => p.id === editingPostId);
+      const isOwner = activeUser && (
+        activeUser.role === "admin" || 
+        (targetPost && targetPost.user_id && targetPost.user_id === activeUser.id)
+      );
+      if (!isOwner) {
+        showToast("🔒 RLS 권한 위반: 포스트 수정 권한은 글 작성자 또는 관리자(admin)만 갖습니다.");
+        setIsSubmitting(false);
+        return;
+      }
+
       if (isSupabaseConfigured) {
         const { error } = await supabase
           .from("posts")
@@ -1063,7 +1093,9 @@ export default function UnifiedPortal() {
           content: newContent,
           category: newCategory,
           image_url: imageUrl,
-          is_restricted: newIsRestricted
+          is_restricted: newIsRestricted,
+          user_id: activeUser ? activeUser.id : null,
+          author_name: activeUser ? activeUser.full_name : "전윤교 펫시터"
         }]);
         setIsSubmitting(false);
         if (error) {
@@ -1084,7 +1116,8 @@ export default function UnifiedPortal() {
             category: newCategory,
             image_url: imageUrl,
             is_restricted: newIsRestricted,
-            author_name: "전윤교 펫시터",
+            author_name: activeUser ? activeUser.full_name : "전윤교 펫시터",
+            user_id: activeUser ? activeUser.id : null,
             created_at: new Date().toISOString()
           };
           setPosts(prev => [newPost, ...prev]);
@@ -1106,6 +1139,177 @@ export default function UnifiedPortal() {
 
   const filteredPosts = currentFilter === "all" ? posts : posts.filter(p => p.category === currentFilter);
   const calendarGridDays = getDaysInMonthGrid();
+
+  // 10. 만약 URL 쿼리 파라미터로 특정 포스트가 선택되었다면 독립적인 상세 글 보기 페이지 제공
+  if (detailPostId) {
+    const detailPost = posts.find(p => String(p.id) === String(detailPostId));
+    
+    // 브라우저 타이틀 변경
+    if (typeof document !== "undefined" && detailPost) {
+      document.title = `${detailPost.title} - 윤교품애 블로그`;
+    }
+
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        backgroundColor: "var(--bg-primary)",
+        color: "var(--text-main)",
+        fontFamily: "'Outfit', 'Inter', sans-serif"
+      }}>
+        {/* 상단 띠 배너 */}
+        <div style={{
+          backgroundColor: "var(--success-mint-light)", color: "var(--success-mint)",
+          padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
+          borderBottom: "1px solid var(--border-light)"
+        }}>
+          🛡️ 윤교품애 블로그 공식 포스트 상세 보기
+        </div>
+
+        {/* Global Toast */}
+        {toast && (
+          <div className="toast-container">
+            <div className="toast">
+              <span className="toast-icon">🛎️</span>
+              <span>{toast}</span>
+            </div>
+          </div>
+        )}
+
+        {/* 메인 상세 컨테이너 */}
+        <main style={{
+          flex: 1,
+          maxWidth: "800px",
+          width: "100%",
+          margin: "40px auto",
+          padding: "0 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "24px"
+        }}>
+          {detailPost ? (
+            <div className="premium-card animate-fade-in" style={{
+              padding: "40px",
+              backgroundColor: "white",
+              borderRadius: "var(--border-radius-lg)",
+              border: "1px solid var(--border-light)",
+              boxShadow: "var(--shadow-md)"
+            }}>
+              {/* 카테고리 태그 및 정보 */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span className="badge badge-tag" style={{
+                  backgroundColor: "var(--primary-orange-light)",
+                  color: "var(--primary-orange)",
+                  fontSize: "0.8rem",
+                  padding: "6px 12px",
+                  borderRadius: "100px",
+                  fontWeight: "750"
+                }}>
+                  {getCategoryName(detailPost.category)}
+                </span>
+                <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: "600" }}>
+                  {detailPost.created_at ? new Date(detailPost.created_at).toLocaleDateString("ko-KR", {
+                    year: "numeric", month: "long", day: "numeric"
+                  }) : "작성일 미상"}
+                </span>
+              </div>
+
+              {/* 제목 */}
+              <h1 style={{
+                fontSize: "2.2rem",
+                fontWeight: "900",
+                color: "var(--text-main)",
+                lineHeight: "1.3",
+                marginBottom: "24px",
+                wordBreak: "keep-all"
+              }}>
+                {detailPost.title}
+              </h1>
+
+              {/* 이미지 */}
+              {detailPost.image_url && (
+                <div style={{
+                  width: "100%",
+                  maxHeight: "450px",
+                  overflow: "hidden",
+                  borderRadius: "var(--border-radius-md)",
+                  marginBottom: "32px",
+                  border: "1px solid var(--border-light)"
+                }}>
+                  <img
+                    src={detailPost.image_url}
+                    alt={detailPost.title}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </div>
+              )}
+
+              {/* 본문 텍스트 */}
+              <div style={{
+                fontSize: "1.05rem",
+                color: "var(--text-main)",
+                lineHeight: "1.8",
+                whiteSpace: "pre-wrap",
+                textAlign: "left",
+                wordBreak: "keep-all",
+                marginBottom: "40px"
+              }}>
+                {detailPost.content}
+              </div>
+
+              {/* 닫기 / 이전 화면으로 가기 */}
+              <div style={{ display: "flex", justifyContent: "center", borderTop: "1px solid var(--border-light)", paddingTop: "24px" }}>
+                <button
+                  onClick={() => window.close()}
+                  className="btn btn-primary"
+                  style={{ padding: "12px 32px", fontSize: "0.95rem" }}
+                >
+                  창 닫기 ✕
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="premium-card animate-fade-in" style={{
+              padding: "40px",
+              backgroundColor: "white",
+              borderRadius: "var(--border-radius-lg)",
+              border: "1px solid var(--border-light)",
+              boxShadow: "var(--shadow-md)",
+              textAlign: "center"
+            }}>
+              <span style={{ fontSize: "3rem", display: "block", marginBottom: "16px" }}>🔍</span>
+              <h3 style={{ fontSize: "1.4rem", color: "var(--text-main)", fontWeight: "800", marginBottom: "10px" }}>
+                포스트를 찾을 수 없습니다
+              </h3>
+              <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", marginBottom: "24px" }}>
+                요청하신 블로그 글의 ID가 존재하지 않거나 삭제되었을 수 있습니다.
+              </p>
+              <button
+                onClick={() => window.close()}
+                className="btn btn-primary"
+                style={{ padding: "10px 24px" }}
+              >
+                창 닫기 ✕
+              </button>
+            </div>
+          )}
+        </main>
+
+        {/* 하단 카피라이트 */}
+        <footer style={{
+          padding: "24px",
+          backgroundColor: "var(--bg-secondary)",
+          borderTop: "1px solid var(--border-light)",
+          textAlign: "center",
+          fontSize: "0.8rem",
+          color: "var(--text-muted)"
+        }}>
+          © 2026 윤교품애. All Rights Reserved.
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -1263,17 +1467,31 @@ export default function UnifiedPortal() {
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       type="button"
-                      onClick={() => setSelectedRole("vip")}
+                      onClick={() => setSelectedRole("member")}
                       style={{
                         flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
                         borderRadius: "var(--border-radius-sm)",
-                        backgroundColor: selectedRole === "vip" ? "var(--primary-orange-light)" : "white",
-                        borderColor: selectedRole === "vip" ? "var(--primary-orange)" : "var(--border-light)",
-                        color: selectedRole === "vip" ? "var(--primary-orange)" : "var(--text-muted)",
+                        backgroundColor: selectedRole === "member" ? "var(--primary-orange-light)" : "white",
+                        borderColor: selectedRole === "member" ? "var(--primary-orange)" : "var(--border-light)",
+                        color: selectedRole === "member" ? "var(--primary-orange)" : "var(--text-muted)",
                         fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
                       }}
                     >
-                      👤 일반 회원 (VIP)
+                      👤 일반 회원 (Member)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRole("sitter")}
+                      style={{
+                        flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
+                        borderRadius: "var(--border-radius-sm)",
+                        backgroundColor: selectedRole === "sitter" ? "var(--primary-orange-light)" : "white",
+                        borderColor: selectedRole === "sitter" ? "var(--primary-orange)" : "var(--border-light)",
+                        color: selectedRole === "sitter" ? "var(--primary-orange)" : "var(--text-muted)",
+                        fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
+                      }}
+                    >
+                      ⚡ 펫시터 (Sitter)
                     </button>
                     <button
                       type="button"
@@ -1287,7 +1505,7 @@ export default function UnifiedPortal() {
                         fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
                       }}
                     >
-                      👑 펫시터 (Admin)
+                      👑 관리자 (Admin)
                     </button>
                   </div>
                   <span style={{ display: "block", fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "8px", lineHeight: "1.3" }}>
@@ -1669,8 +1887,8 @@ export default function UnifiedPortal() {
                 if (!isLoggedIn) {
                   showToast("🔒 보안 수칙: 펫시터 관리 권한 확인을 위해 로그인이 필요합니다.");
                   setShowLoginModal(true);
-                } else if (activeUser && activeUser.role !== "admin") {
-                  showToast("🔒 보안 경고: 이 탭은 펫시터(관리자) 전용 공간입니다. 관리자로 재인증해주세요.");
+                } else if (activeUser && activeUser.role !== "admin" && activeUser.role !== "sitter") {
+                  showToast("🔒 보안 경고: 이 탭은 펫시터 및 관리자 전용 공간입니다. 펫시터 또는 관리자로 재인증해주세요.");
                 } else {
                   setActivePortal("sitter");
                 }
@@ -2065,10 +2283,10 @@ export default function UnifiedPortal() {
                   ))}
                 </div>
 
-                {/* Create post button for Admin */}
-                {activeUser && activeUser.role === "admin" && (
+                {/* Create post button for Admin & Member */}
+                {activeUser && (activeUser.role === "admin" || activeUser.role === "member") && (
                   <button className="btn btn-primary" onClick={() => setShowCreateModal(true)} style={{ padding: "10px 20px" }}>
-                    ✍️ 새 포스트 작성 (Admin)
+                    ✍️ 새 포스트 작성
                   </button>
                 )}
               </div>
@@ -2080,10 +2298,14 @@ export default function UnifiedPortal() {
                 gap: "30px"
               }}>
                 {filteredPosts.map(post => {
-                  const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "admin");
+                  const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "sitter" || activeUser.role === "admin");
                   const isLocked = post.is_restricted && !hasAccess;
                   const isExpanded = expandedPostId === post.id;
                   const isAdmin = activeUser && activeUser.role === "admin";
+                  const isOwner = activeUser && (
+                    activeUser.role === "admin" || 
+                    (post.user_id && post.user_id === activeUser.id)
+                  );
 
                   return (
                     <div
@@ -2152,9 +2374,11 @@ export default function UnifiedPortal() {
                           fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.6",
                           whiteSpace: isExpanded ? "pre-wrap" : "normal",
                           display: isExpanded ? "block" : "-webkit-box",
-                          WebkitLineClamp: 2,
+                          WebkitLineClamp: isExpanded ? "none" : 2,
                           WebkitBoxOrient: "vertical",
-                          overflow: isExpanded ? "visible" : "hidden",
+                          overflow: isExpanded ? "auto" : "hidden",
+                          maxHeight: isExpanded ? "200px" : "none",
+                          paddingRight: isExpanded ? "6px" : "0",
                           margin: 0
                         }}>
                           {post.content}
@@ -2192,7 +2416,7 @@ export default function UnifiedPortal() {
                           {isLocked ? "🔒 클릭하여 회원권 로그인" : isExpanded ? "▲ 접기" : "▼ 클릭하여 전체 읽기"}
                         </span>
 
-                        {isAdmin && (
+                        {isOwner && (
                           <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={(e) => handleEditPostClick(e, post)}
@@ -2252,7 +2476,7 @@ export default function UnifiedPortal() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "32px", alignItems: "flex-start" }}>
               
               {/* Left Column: Calendar & Times */}
-              <div style={{ flex: "1 1 500px", display: "flex", flexDirection: "column", gap: "24px" }}>
+              <div style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "24px" }}>
                 
                 {/* 캘린더 그리드 */}
                 <div className="premium-card">
@@ -2416,7 +2640,7 @@ export default function UnifiedPortal() {
               </div>
 
               {/* Right Column: Detail Forms */}
-              <div className="premium-card" style={{ flex: "1 1 400px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div className="premium-card" style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "20px" }}>
                 <h3 style={{ fontSize: "1.2rem", fontWeight: "800", borderBottom: "1.5px solid var(--border-light)", paddingBottom: "10px", margin: 0 }}>
                   📋 돌봄 예약 세부 사항 입력
                 </h3>
@@ -2607,6 +2831,10 @@ export default function UnifiedPortal() {
                             placeholder="예: 5/27~5/30 매일 방문 희망 (최대 100자)"
                             maxLength={100}
                             required={bookingType === "multi"}
+                            lang="ko"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
                           />
                         </div>
                       </div>
@@ -2646,6 +2874,10 @@ export default function UnifiedPortal() {
                       placeholder={bookingType === "single" && selectedTimeSlot ? `선택된 시간: ${selectedTimeSlot.time} (직접 수정/추가 기입 가능)` : "예: 오후 2시 선호합니다, 또는 오전 11시 ~ 오후 1시 사이 (최대 100자)"}
                       maxLength={100}
                       required
+                      lang="ko"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                     />
                   </div>
 
@@ -2669,6 +2901,10 @@ export default function UnifiedPortal() {
                           onChange={(e) => setPetName(e.target.value)}
                           placeholder="예: 치즈, 먼지, 로니"
                           required
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                         />
                       </div>
                       <div style={{ flex: 1 }}>
@@ -2714,6 +2950,10 @@ export default function UnifiedPortal() {
                         placeholder="예:&#13;1. 치즈 (5살, 남아, 중성화 완료) - 신부전 약 급여 필요, 사람을 아주 좋아함&#13;2. 먼지 (2살, 여아, 중성화 완료) - 겁이 많아 숨어있을 수 있으니 기본케어 위주로 해주세요.&#13;(최대 2000자)"
                         maxLength={2000}
                         required
+                        lang="ko"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                       />
                     </div>
                   </div>
@@ -2811,6 +3051,10 @@ export default function UnifiedPortal() {
                           value={clientPhone}
                           onChange={(e) => setClientPhone(e.target.value)}
                           placeholder="예: 010-1234-5678"
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                         />
                       </div>
 
@@ -2822,6 +3066,10 @@ export default function UnifiedPortal() {
                           value={clientAddress}
                           onChange={(e) => setClientAddress(e.target.value)}
                           placeholder="예: 경상남도 거제시 고현로 123, 101동 102호"
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                         />
                       </div>
 
@@ -2849,7 +3097,7 @@ export default function UnifiedPortal() {
                       </div>
 
                       <div className="form-group">
-                        <label className="form-label">🚪 상세 출입 방법 안내 (필수)</label>
+                        <label className="form-label">🚪 상세 출입 방법 안내 (선택)</label>
                         <textarea
                           rows="2"
                           className="form-input"
@@ -2857,6 +3105,10 @@ export default function UnifiedPortal() {
                           onChange={(e) => setEntryMethodDetail(e.target.value)}
                           placeholder="예: 공동현관 호출 후 경비실 승인 필요 / 도어락 커버를 올리고 입력 등"
                           style={{ resize: "vertical", fontSize: "0.85rem" }}
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                         ></textarea>
                       </div>
 
@@ -3021,7 +3273,7 @@ export default function UnifiedPortal() {
                       💰 실시간 예상 이용 요금 상세
                     </span>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                      <span style={{ color: "var(--text-muted)" }}>기본 요금 (1일 1회 약 30분)</span>
+                      <span style={{ color: "var(--text-muted)" }}>기본 요금 (17,000원 × {calculateBookingPrice().daysCount}일)</span>
                       <span style={{ fontWeight: "600" }}>{calculateBookingPrice().basePrice.toLocaleString()}원</span>
                     </div>
 
@@ -3243,24 +3495,26 @@ export default function UnifiedPortal() {
                           onChange={(e) => setPetPersonalityOther(e.target.value)}
                           placeholder="기타 성격 특이사항을 직접 입력 (예: 밥 먹을 때 예민함, 특정 소리에 민감)"
                           style={{ fontSize: "0.83rem" }}
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                         />
                       </div>
 
-                      {(petPersonality.includes("겁이 많음") || petPersonality.includes("공격성 있음")) && (
-                        <div style={{
-                          width: "100%",
-                          marginTop: "10px",
-                          color: "var(--warning-coral)",
-                          fontSize: "0.8rem",
-                          fontWeight: "700",
-                          backgroundColor: "var(--warning-coral-light)",
-                          border: "1px dashed var(--warning-coral)",
-                          padding: "10px 12px",
-                          borderRadius: "8px"
-                        }} className="animate-fade-in">
-                          *겁이 많거나 공격성이 있는경우 아이의 스트레스를 고려 하여 기본케어(급여,물,화장실관리)만 진행될 수 있습니다
-                        </div>
-                      )}
+                      <div style={{
+                        width: "100%",
+                        marginTop: "10px",
+                        color: "var(--warning-coral)",
+                        fontSize: "0.8rem",
+                        fontWeight: "700",
+                        backgroundColor: "var(--warning-coral-light)",
+                        border: "1px dashed var(--warning-coral)",
+                        padding: "10px 12px",
+                        borderRadius: "8px"
+                      }}>
+                        *겁이 많거나 공격성이 있는경우 아이의 스트레스를 고려 하여 기본케어(급여,물,화장실관리)만 진행될 수 있습니다
+                      </div>
                     </div>
                   </div>
 
@@ -3277,6 +3531,10 @@ export default function UnifiedPortal() {
                       onChange={(e) => setFeedingInfo(e.target.value)}
                       placeholder="예: 주방 싱크대 아래 파란 그릇, 건식 사료 1/3컵 1일 2회, 정수된 물 사용, 참치 알러지 있음"
                       style={{ resize: "vertical", fontSize: "0.85rem" }}
+                      lang="ko"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                     ></textarea>
                   </div>
 
@@ -3293,6 +3551,10 @@ export default function UnifiedPortal() {
                       onChange={(e) => setLitterInfo(e.target.value)}
                       placeholder="예: 베란다에 두부 모래 화장실, 사용 후 응고된 부분 스쿱으로 제거 후 봉투에 담아 버림"
                       style={{ resize: "vertical", fontSize: "0.85rem" }}
+                      lang="ko"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                     ></textarea>
                   </div>
 
@@ -3305,6 +3567,10 @@ export default function UnifiedPortal() {
                       onChange={(e) => setCareMemo(e.target.value)}
                       placeholder="투약 지침, 산책 시 주의사항, 도어락 출입 수칙 등 기타 전달사항을 자세히 적어주세요."
                       style={{ resize: "vertical" }}
+                      lang="ko"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                     ></textarea>
                   </div>
 
@@ -3353,7 +3619,7 @@ export default function UnifiedPortal() {
       {/* ============================================================== */}
       {/* 9. PORTAL VIEW C: 🔒 펫시터 전용 관리 대시보드 (Admin Panel) */}
       {/* ============================================================== */}
-      {activeUser && activeUser.role === "admin" && (
+      {activeUser && (activeUser.role === "admin" || activeUser.role === "sitter") && (
         <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0", display: activePortal === "sitter" ? "block" : "none" }}>
           <div className="container">
             
@@ -3398,7 +3664,7 @@ export default function UnifiedPortal() {
               <span style={{ fontSize: "0.9rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "12px" }}>
                 📅 관리할 예약 일정 선택 ({sitterReservations.length}건)
               </span>
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
                 {sitterReservations.map((res, index) => {
                   const isActive = activeReservationIndex === index;
                   return (
@@ -3426,6 +3692,123 @@ export default function UnifiedPortal() {
                     </button>
                   );
                 })}
+              </div>
+
+              {/* 펫시터 달력 뷰 (Sitter Calendar Grid) */}
+              <div className="premium-card" style={{ padding: "20px", backgroundColor: "white", borderRadius: "12px", border: "1px solid var(--border-light)" }}>
+                <span style={{ fontSize: "0.9rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "16px" }}>
+                  📅 펫시터 돌봄 통합 캘린더 (날짜/배지를 클릭하면 해당 예약으로 즉시 전환됩니다)
+                </span>
+
+                {/* 요일 헤더 */}
+                <div style={{
+                  display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
+                  textAlign: "center", fontWeight: "700", fontSize: "0.8rem",
+                  color: "var(--text-muted)", marginBottom: "10px"
+                }}>
+                  {["일", "월", "화", "수", "목", "금", "토"].map(d => <span key={d}>{d}</span>)}
+                </div>
+
+                {/* 날짜 그리드 */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+                  {calendarGridDays.map((dayObj, index) => {
+                    if (!dayObj.day || !dayObj.date) {
+                      return <div key={index} style={{ minHeight: "80px", backgroundColor: "var(--bg-primary)", opacity: 0.35, borderRadius: "4px" }} />;
+                    }
+
+                    // Find reservations on this date
+                    const targetDateString = dayObj.date.toDateString();
+                    const reservationsOnDay = sitterReservations.map((res, originalIndex) => ({
+                      ...res,
+                      originalIndex
+                    })).filter(res => res.visit_date_string === targetDateString);
+
+                    return (
+                      <div
+                        key={index}
+                        style={{
+                          borderRadius: "var(--border-radius-sm)",
+                          minHeight: "80px",
+                          padding: "6px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "flex-start",
+                          justifyContent: "flex-start",
+                          fontSize: "0.85rem",
+                          backgroundColor: "var(--bg-secondary)",
+                          border: "1.5px solid var(--border-light)",
+                          transition: "all 0.15s ease",
+                          position: "relative"
+                        }}
+                      >
+                        {/* 날짜 번호 */}
+                        <span style={{ 
+                          fontWeight: "800", 
+                          color: "var(--text-main)", 
+                          marginBottom: "4px",
+                          fontSize: "0.9rem"
+                        }}>
+                          {dayObj.day}
+                        </span>
+
+                        {/* 예약 리스트 */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                          {reservationsOnDay.map((res) => {
+                            const isActive = activeReservationIndex === res.originalIndex;
+                            let badgeBg = "var(--bg-primary)";
+                            let badgeColor = "var(--text-muted)";
+                            
+                            if (res.status === "completed") {
+                              badgeBg = "var(--success-mint-light)";
+                              badgeColor = "var(--success-mint)";
+                            } else if (res.status === "started") {
+                              badgeBg = "var(--primary-orange-light)";
+                              badgeColor = "var(--primary-orange)";
+                            } else {
+                              badgeBg = "rgba(22, 31, 56, 0.05)";
+                              badgeColor = "var(--text-main)";
+                            }
+
+                            return (
+                              <div
+                                key={res.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveReservationIndex(res.originalIndex);
+                                  setChecklistReq1(res.status === "started" || res.status === "completed");
+                                  setChecklistReq2(res.status === "started" || res.status === "completed");
+                                  setChecklistReq3(res.status === "started" || res.status === "completed");
+                                }}
+                                style={{
+                                  padding: "4px 6px",
+                                  borderRadius: "4px",
+                                  backgroundColor: isActive ? "var(--primary-orange)" : badgeBg,
+                                  color: isActive ? "white" : badgeColor,
+                                  fontSize: "0.7rem",
+                                  fontWeight: "800",
+                                  cursor: "pointer",
+                                  border: isActive ? "1px solid var(--primary-orange)" : "1px solid transparent",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "2px",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  width: "100%",
+                                  boxShadow: isActive ? "0 2px 5px rgba(255, 112, 67, 0.2)" : "none"
+                                }}
+                                title={`${res.client_name} (${res.pet_name}) - ${res.visit_time}`}
+                              >
+                                {res.status === "completed" ? "✅" : res.status === "started" ? "⚡" : "📅"}
+                                {res.pet_name} ({res.visit_time})
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -3473,6 +3856,66 @@ export default function UnifiedPortal() {
                                sitterReservations[activeReservationIndex].status === "completed" ? "🏁 돌봄 완료 (Completed)" : "💤 대기 중 (Confirmed)"}
                       </span>
                     </div>
+
+                    {/* Sitter and Admin time adjustment UI */}
+                    {(activeUser && (activeUser.role === "admin" || activeUser.role === "sitter")) && (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        backgroundColor: "var(--bg-secondary)",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px dashed var(--primary-orange)",
+                        marginBottom: "20px",
+                        width: "fit-content"
+                      }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: "800", color: "var(--text-main)" }}>
+                          🕒 돌봄 시간 조절 및 수정:
+                        </span>
+                        <input
+                          type="text"
+                          value={sitterReservations[activeReservationIndex].visit_time || ""}
+                          onChange={(e) => {
+                            const newTime = e.target.value;
+                            setSitterReservations(prev => {
+                              const next = [...prev];
+                              next[activeReservationIndex] = {
+                                ...next[activeReservationIndex],
+                                visit_time: newTime
+                              };
+                              return next;
+                            });
+                          }}
+                          placeholder="예: 2 PM"
+                          style={{
+                            padding: "6px 10px",
+                            fontSize: "0.8rem",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-light)",
+                            width: "120px",
+                            fontWeight: "700",
+                            textAlign: "center"
+                          }}
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                        />
+                        <button
+                          onClick={() => {
+                            showToast("🕒 돌봄 방문 일정이 성공적으로 변경되었습니다.");
+                          }}
+                          className="btn btn-primary"
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "0.8rem"
+                          }}
+                        >
+                          수정 완료
+                        </button>
+                      </div>
+                    )}
 
                     {/* Visit Area & Price details in dashboard */}
                     <div style={{
