@@ -242,6 +242,7 @@ export default function UnifiedPortal() {
   const [showBookingSuccessModal, setShowBookingSuccessModal] = useState(false);
   const [bookingSummary, setBookingSummary] = useState(null);
   const [tempBookingData, setTempBookingData] = useState(null);
+  const [bookingStep, setBookingStep] = useState(1); // 1 = 기본정보, 2 = 건강/돌봄 상세
 
   // New multi-day and questionnaire fields
   const [bookingType, setBookingType] = useState("single"); // "single" | "multi"
@@ -2466,7 +2467,7 @@ export default function UnifiedPortal() {
                 보호자 전용 실시간 돌봄 간편 예약 채널 📅
               </span>
               <h2 style={{ fontSize: "2rem", color: "var(--text-main)", fontWeight: "800", marginTop: "12px", marginBottom: "8px" }}>
-                직관적인 캘린더 실시간 돌봄 예약
+                실시간 돌봄 예약
               </h2>
               <p style={{ fontSize: "0.95rem", color: "var(--text-muted)" }}>
                 캘린더에서 원하시는 날짜와 여유 시간대를 선택해 주시면 전문 펫시터 전윤교님이 집으로 직접 찾아갑니다.
@@ -2628,7 +2629,7 @@ export default function UnifiedPortal() {
                 {bookingType === "multi" && (
                   <div className="premium-card animate-fade-in" style={{ backgroundColor: "var(--primary-orange-light)", border: "1.5px solid var(--primary-orange)" }}>
                     <h4 style={{ fontSize: "1rem", fontWeight: "800", marginBottom: "8px", color: "var(--primary-orange)" }}>
-                      📅 여러 날 정기 신청 진행 중
+                      📅 여러 날 신청 진행 중
                     </h4>
                     <p style={{ fontSize: "0.85rem", color: "var(--text-main)", lineHeight: "1.5", margin: 0, fontWeight: "500" }}>
                       여러 날 예약을 신청하실 때는 개별 타임슬롯을 선택하지 않습니다. <br />
@@ -2647,6 +2648,71 @@ export default function UnifiedPortal() {
 
                 <form onSubmit={handleBookingSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
+                  {/* ===== Step Indicator ===== */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0",
+                    marginBottom: "8px"
+                  }}>
+                    <div style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "10px 16px",
+                      borderRadius: "10px 0 0 10px",
+                      backgroundColor: bookingStep === 1 ? "var(--primary-orange)" : "var(--bg-secondary)",
+                      color: bookingStep === 1 ? "white" : "var(--text-muted)",
+                      fontWeight: "800",
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      border: bookingStep === 1 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderRight: "none"
+                    }}
+                      onClick={() => setBookingStep(1)}
+                    >
+                      <span style={{
+                        width: "24px", height: "24px", borderRadius: "50%",
+                        backgroundColor: bookingStep === 1 ? "white" : "var(--border-light)",
+                        color: bookingStep === 1 ? "var(--primary-orange)" : "var(--text-muted)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "0.75rem", fontWeight: "900", flexShrink: 0
+                      }}>1</span>
+                      예약 기본 정보
+                    </div>
+                    <div style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "10px 16px",
+                      borderRadius: "0 10px 10px 0",
+                      backgroundColor: bookingStep === 2 ? "var(--primary-orange)" : "var(--bg-secondary)",
+                      color: bookingStep === 2 ? "white" : "var(--text-muted)",
+                      fontWeight: "800",
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      border: bookingStep === 2 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)"
+                    }}
+                      onClick={() => setBookingStep(2)}
+                    >
+                      <span style={{
+                        width: "24px", height: "24px", borderRadius: "50%",
+                        backgroundColor: bookingStep === 2 ? "white" : "var(--border-light)",
+                        color: bookingStep === 2 ? "var(--primary-orange)" : "var(--text-muted)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "0.75rem", fontWeight: "900", flexShrink: 0
+                      }}>2</span>
+                      건강 & 돌봄 상세
+                    </div>
+                  </div>
+
+                  {/* ===== PAGE 1: 예약 기본 정보 ===== */}
+                  {bookingStep === 1 && (
+                    <>
                   {/* ===== 신규 / 재신청 고객 선택 ===== */}
                   <div className="form-group">
                     <label className="form-label">👤 신청 유형 선택 (필수)</label>
@@ -2758,7 +2824,7 @@ export default function UnifiedPortal() {
                           transition: "all 0.2s ease"
                         }}
                       >
-                        📅 여러 날 정기 신청
+                        📅 여러 날 신청
                         <div style={{ fontSize: "0.72rem", fontWeight: "500", marginTop: "3px", opacity: 0.8 }}>
                           시작일~종료일, 매일/격일 등
                         </div>
@@ -3341,6 +3407,48 @@ export default function UnifiedPortal() {
                     </div>
                   </div>
 
+                  {/* Page 1 → Page 2 Navigation Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingStep(2);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: "100%", padding: "16px", fontSize: "1.05rem", marginTop: "4px" }}
+                  >
+                    다음 단계로 이동 → 건강 & 돌봄 상세 📋
+                  </button>
+                    </>
+                  )}
+
+                  {/* ===== PAGE 2: 건강 & 돌봄 상세 ===== */}
+                  {bookingStep === 2 && (
+                    <>
+                  {/* Page 2 → Page 1 Back Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingStep(1);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      fontSize: "0.9rem",
+                      backgroundColor: "var(--bg-secondary)",
+                      border: "1.5px solid var(--border-light)",
+                      borderRadius: "10px",
+                      color: "var(--text-muted)",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      marginBottom: "4px",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    ← 이전 단계로 돌아가기 (예약 기본 정보)
+                  </button>
+
                   {/* ===== 건강 상태 체크 섹션 ===== */}
                   <div className="form-group">
                     <label className="form-label">🏥 건강 상태 체크 (필수)</label>
@@ -3609,6 +3717,8 @@ export default function UnifiedPortal() {
                   >
                     {isBookingLoading ? "예약 신청 전송 중... (안전 복구 보호 활성)" : "돌봄 예약 확정하기 📝"}
                   </button>
+                    </>
+                  )}
                 </form>
               </div>
 
