@@ -2823,7 +2823,9 @@ export default function UnifiedPortal() {
                       fontSize: "0.85rem",
                       cursor: "pointer",
                       transition: "all 0.2s ease",
-                      border: bookingStep === 1 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderTop: bookingStep === 1 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderBottom: bookingStep === 1 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderLeft: bookingStep === 1 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
                       borderRight: "none"
                     }}
                       onClick={() => setBookingStep(1)}
