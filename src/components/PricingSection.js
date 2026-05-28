@@ -302,13 +302,15 @@ export default function PricingSection({ onBookingClick }) {
               </div>
 
               {/* CTA 버튼 */}
-              <button
-                onClick={onBookingClick}
-                className="btn btn-primary"
-                style={{ width: "100%", padding: "14px", fontSize: "0.95rem", fontWeight: "800" }}
-              >
-                📅 이 요금으로 예약 신청하기 →
-              </button>
+              {onBookingClick && (
+                <button
+                  onClick={onBookingClick}
+                  className="btn btn-primary"
+                  style={{ width: "100%", padding: "14px", fontSize: "0.95rem", fontWeight: "800", marginTop: "16px" }}
+                >
+                  📅 이 요금으로 예약 신청하기 →
+                </button>
+              )}
             </div>
           </div>
         </div>

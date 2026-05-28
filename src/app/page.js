@@ -1399,6 +1399,22 @@ export default function UnifiedPortal() {
   const filteredPosts = currentFilter === "all" ? allPosts : allPosts.filter(p => p.category === currentFilter);
   const calendarGridDays = getDaysInMonthGrid();
 
+  const getDynamicChecklist1Text = () => {
+    const reservation = sitterReservations[activeReservationIndex];
+    if (!reservation) return "1. 반려동물 급여 지침 및 돌봄 수칙을 온전히 인지하였습니다.";
+
+    const customer = customers.find(c => Number(c.id) === Number(reservation.customer_id));
+    if (customer && customer.specialties && customer.specialties !== "미입력" && customer.specialties.trim() !== "") {
+      return `1. 보호자 특별 지침: ${reservation.pet_name} - ${customer.specialties} 사항을 온전히 인지하였습니다.`;
+    }
+
+    if (reservation.mandatory_requirements && reservation.mandatory_requirements.trim() !== "") {
+      return `1. 돌봄 필수 수칙: ${reservation.mandatory_requirements} 사항을 온전히 인지하였습니다.`;
+    }
+
+    return `1. ${reservation.pet_name} 사료/물 급여 수칙 및 아이 맞춤형 기본 돌봄 지침을 온전히 인지하였습니다.`;
+  };
+
   // 10. 만약 URL 쿼리 파라미터로 특정 포스트가 선택되었다면 독립적인 상세 글 보기 페이지 제공
   if (detailPostId) {
     const detailPost = allPosts.find(p => String(p.id) === String(detailPostId));
@@ -2515,10 +2531,7 @@ export default function UnifiedPortal() {
             </div>
           </section>
 
-          {/* ============================================================== */}
-          {/* 서비스 소개 & 실시간 요금 계산기 */}
-          {/* ============================================================== */}
-          <PricingSection onBookingClick={() => setActivePortal("booking")} />
+          {/* PricingSection removed from home portal */}
 
           {/* Filter and Post lists */}
           <section style={{ padding: "60px 0" }}>
@@ -2742,6 +2755,9 @@ export default function UnifiedPortal() {
                 캘린더에서 원하시는 날짜와 여유 시간대를 선택해 주시면 전문 펫시터 전윤교님이 집으로 직접 찾아갑니다.
               </p>
             </div>
+
+            {/* 실시간 요금 계산기 및 요금표 */}
+            <PricingSection />
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: "32px", alignItems: "flex-start" }}>
               
@@ -4504,7 +4520,7 @@ export default function UnifiedPortal() {
                         
                         <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer" }}>
                           <input type="checkbox" checked={checklistReq1} onChange={(e) => setChecklistReq1(e.target.checked)} />
-                          <span>1. 신부전 약물(0.5cc) 급여 지침 및 식사 제공 수칙을 온전히 인지하였습니다.</span>
+                          <span>{getDynamicChecklist1Text()}</span>
                         </label>
                         <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer" }}>
                           <input type="checkbox" checked={checklistReq2} onChange={(e) => setChecklistReq2(e.target.checked)} />
