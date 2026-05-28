@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import ImageUploader from "../components/ImageUploader";
 import JournalMediaUploader from "../components/JournalMediaUploader";
+import PricingSection from "../components/PricingSection";
 
 // ==============================================================
 // 1. DUMMY & SEED DATA (Conforming to blog_schema & PRD)
@@ -255,7 +256,6 @@ export default function UnifiedPortal() {
   const [petCount, setPetCount] = useState("1");
   const [petDetailsText, setPetDetailsText] = useState("");
 
-  // New Pricing Option States
   const [isHoliday, setIsHoliday] = useState(false);
   const [optPreMeet, setOptPreMeet] = useState(false);
   const [optMedication, setOptMedication] = useState(false);
@@ -264,36 +264,34 @@ export default function UnifiedPortal() {
   const [optDogAdd, setOptDogAdd] = useState(false);
   const [optTwoVisits, setOptTwoVisits] = useState(false);
 
-  // Health Check States (건강 상태 체크)
-  const [recentHospitalVisit, setRecentHospitalVisit] = useState(""); // "yes" | "no" | ""
+  const [recentHospitalVisit, setRecentHospitalVisit] = useState("");
   const [recentHospitalDetail, setRecentHospitalDetail] = useState("");
-  const [infectiousDisease, setInfectiousDisease] = useState(""); // "yes" | "no" | ""
+  const [infectiousDisease, setInfectiousDisease] = useState("");
   const [healthAgreement, setHealthAgreement] = useState(false);
 
-  // Pet Personality States (반려동물 성격)
   const [petPersonality, setPetPersonality] = useState([]);
   const [petPersonalityOther, setPetPersonalityOther] = useState("");
 
-  // Care Info States (사료급여 + 화장실 관리)
   const [feedingInfo, setFeedingInfo] = useState("");
   const [litterInfo, setLitterInfo] = useState("");
 
-  // 신규 / 재신청 고객 구분
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
-
-  // 등록 고객 목록 상태 (보안 관리대장 연동용)
   const [customers, setCustomers] = useState(CUSTOMERS_DB);
 
-  // 신규 수집 개인정보 및 출입/동의 관련 상태들
   const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [entranceCode, setEntranceCode] = useState("");
   const [doorlockCode, setDoorlockCode] = useState("");
   const [entryMethodDetail, setEntryMethodDetail] = useState("");
-  const [parkingOption, setParkingOption] = useState("free"); // "free" | "paid" | "register" | "impossible"
-  const [photoVideoPreference, setPhotoVideoPreference] = useState("many"); // "many" | "confirmation"
+  const [parkingOption, setParkingOption] = useState("free");
+  const [photoVideoPreference, setPhotoVideoPreference] = useState("many");
   const [snsAgreement, setSnsAgreement] = useState(false);
   const [privacyAgreement, setPrivacyAgreement] = useState(false);
+
+  // 재신청 고객 조회 상태
+  const [returningSearchPhone, setReturningSearchPhone] = useState("");
+  const [returningFoundCustomer, setReturningFoundCustomer] = useState(null);
+  const [returningSearchDone, setReturningSearchDone] = useState(false);
 
   // 재신청 고객이 이전에 저장한 정보 (실제 서비스에서는 DB에서 불러옴 - 여기서는 모의 데이터)
   const MOCK_PREVIOUS_BOOKING = {
@@ -318,44 +316,45 @@ export default function UnifiedPortal() {
     petDetailsText: "1. 로니 (3살, 남아, 중성화 완료) - 소심하지만 다정한 아이. 사료 급여와 감자 수확 필요."
   };
 
-  // 재신청 / 신규 선택 시 폼 필드 자동 로드/초기화 함수
+  // 재신청 / 신규 선택 시 폼 필드 초기화 함수
   const handleCustomerTypeChange = (isReturning) => {
     setIsReturningCustomer(isReturning);
-    if (isReturning) {
-      setFeedingInfo(MOCK_PREVIOUS_BOOKING.feedingInfo);
-      setLitterInfo(MOCK_PREVIOUS_BOOKING.litterInfo);
-      
-      const savedTraits = MOCK_PREVIOUS_BOOKING.petPersonality.split(", ").map(t => t.trim());
-      const standardTraits = ["사람 좋아함", "낯가림 있음", "겁이 많음", "공격성 있음", "만지는 거 싫어함"];
-      
-      const standardSelected = savedTraits.filter(t => standardTraits.includes(t));
-      const otherSelected = savedTraits.filter(t => !standardTraits.includes(t)).join(", ");
-      
-      setPetPersonality(standardSelected);
-      setPetPersonalityOther(otherSelected);
-
-      // Auto-fill new fields for returning customer
-      setPetName(MOCK_PREVIOUS_BOOKING.petName || "");
-      setPetAge(MOCK_PREVIOUS_BOOKING.petAge || "");
-      setPetCount(MOCK_PREVIOUS_BOOKING.petCount || "1");
-      setBookingDateText(MOCK_PREVIOUS_BOOKING.bookingDateText || "");
-      setBookingTimeText(MOCK_PREVIOUS_BOOKING.bookingTimeText || "");
-      setPetDetailsText(MOCK_PREVIOUS_BOOKING.petDetailsText || "");
-    } else {
-      setFeedingInfo("");
-      setLitterInfo("");
-      setPetPersonality([]);
-      setPetPersonalityOther("");
-
-      // Clear fields for new customer
-      setPetName("");
-      setPetAge("");
-      setPetCount("1");
-      setBookingDateText("");
-      setBookingTimeText("");
-      setPetDetailsText("");
+    setReturningSearchPhone(""); setReturningSearchDone(false); setReturningFoundCustomer(null);
+    if (!isReturning) {
+      setFeedingInfo(""); setLitterInfo(""); setPetPersonality([]); setPetPersonalityOther("");
+      setPetName(""); setPetAge(""); setPetCount("1"); setBookingDateText(""); setBookingTimeText(""); setPetDetailsText("");
+      setClientPhone(""); setClientAddress(""); setEntranceCode(""); setDoorlockCode("");
+      setEntryMethodDetail(""); setPrivacyAgreement(false); setSnsAgreement(false);
     }
   };
+
+  // 재신청 고객 연락처 조회 함수
+  const handleReturningCustomerSearch = () => {
+    if (!returningSearchPhone.trim()) { showToast("연락처를 입력해 주세요."); return; }
+    const norm = (s) => s.replace(/[\s-]/g, "");
+    const found = customers.find(c => norm(c.phone) === norm(returningSearchPhone));
+    setReturningSearchDone(true);
+    if (found) {
+      setReturningFoundCustomer(found);
+      setPetName(found.pet_name || ""); setPetAge(String(found.pet_age || ""));
+      setPetDetailsText(found.specialties || "");
+      setClientPhone(found.phone || ""); setClientAddress(found.address || "");
+      setEntranceCode(found.entrance_code || ""); setDoorlockCode(found.doorlock_code || "");
+      setEntryMethodDetail(found.entry_method_detail || "");
+      setParkingOption(found.parking_option || "free");
+      setPhotoVideoPreference(found.photo_video_preference || "many");
+      setSnsAgreement(found.sns_agreement || false); setPrivacyAgreement(true);
+      if (norm(found.phone) === norm(MOCK_PREVIOUS_BOOKING.clientPhone)) {
+        setFeedingInfo(MOCK_PREVIOUS_BOOKING.feedingInfo); setLitterInfo(MOCK_PREVIOUS_BOOKING.litterInfo);
+        const traits = MOCK_PREVIOUS_BOOKING.petPersonality.split(", ").map(t => t.trim());
+        const std = ["사람 좋아함","낯가림 있음","겁이 많음","공격성 있음","만지는 거 싫어함"];
+        setPetPersonality(traits.filter(t => std.includes(t)));
+        setPetPersonalityOther(traits.filter(t => !std.includes(t)).join(", "));
+      }
+      showToast(`✅ ${found.client_name} 고객님 정보를 불러왔습니다.`);
+    }
+  };
+
 
   // 특정 시간대 예약 여부 확인 함수
   const isSlotBooked = (slot) => {
@@ -2405,6 +2404,11 @@ export default function UnifiedPortal() {
               </div>
             </div>
           </section>
+
+          {/* ============================================================== */}
+          {/* 서비스 소개 & 실시간 요금 계산기 */}
+          {/* ============================================================== */}
+          <PricingSection onBookingClick={() => setActivePortal("booking")} />
 
           {/* Filter and Post lists */}
           <section style={{ padding: "60px 0" }}>
