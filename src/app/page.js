@@ -446,6 +446,7 @@ export default function UnifiedPortal() {
   const [journalCustomText, setJournalCustomText] = useState("");
   const [journalPreviewText, setJournalPreviewText] = useState("");
   const [careJournals, setCareJournals] = useState([]);
+  const [localCreatedPosts, setLocalCreatedPosts] = useState([]);
   const [currentJournalMedia, setCurrentJournalMedia] = useState([]);
   const [isCareJournalTableMissing, setIsCareJournalTableMissing] = useState(false);
 
@@ -453,6 +454,35 @@ export default function UnifiedPortal() {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
+
+  // 로컬 저장 포스트 및 돌봄일지 초기화 로드
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedPosts = localStorage.getItem("yoongyopoomae_local_posts");
+      if (savedPosts) {
+        try {
+          setLocalCreatedPosts(JSON.parse(savedPosts));
+        } catch (e) {
+          console.error("로컬 포스트 파싱 오류:", e);
+        }
+      }
+
+      const savedJournals = localStorage.getItem("yoongyopoomae_local_journals");
+      if (savedJournals) {
+        try {
+          const parsed = JSON.parse(savedJournals);
+          setCareJournals(prev => {
+            // 중복되지 않은 저널만 병합하거나 대체
+            const prevIds = prev.map(j => j.id);
+            const nonDup = parsed.filter(j => !prevIds.includes(j.id));
+            return [...nonDup, ...prev];
+          });
+        } catch (e) {
+          console.error("로컬 돌봄일지 파싱 오류:", e);
+        }
+      }
+    }
+  }, []);
 
   // --- Supabase Realtime synchronization ---
   useEffect(() => {
@@ -588,6 +618,13 @@ export default function UnifiedPortal() {
       setCurrentJournalMedia([]);
     }
   }, [activeReservationIndex, careJournals, sitterReservations]);
+
+  // 포탈 탭 변경 시 화면 스크롤을 항상 맨 위로 이동
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [activePortal]);
 
   const fetchSupabasePosts = async () => {
     try {
@@ -1034,6 +1071,23 @@ export default function UnifiedPortal() {
       return;
     }
 
+    const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
+    const firstImage = currentJournalMedia && currentJournalMedia.length > 0 
+      ? currentJournalMedia[0] 
+      : "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=800";
+
+    const newPostData = {
+      title: `[돌봄 일지] ${reservation.client_name} 보호자님의 ${reservation.pet_name} 돌봄 일지 🐾`,
+      excerpt: `펫시터 전윤교가 작성한 ${reservation.pet_name}의 실시간 돌봄 기록입니다. (회원 전용)`,
+      content: journalPreviewText,
+      category: "log",
+      image_url: firstImage,
+      is_restricted: true,
+      author_name: "전윤교 펫시터",
+      user_id: activeUser ? activeUser.id : null,
+      created_at: new Date().toISOString()
+    };
+
     if (isSupabaseConfigured) {
       try {
         // Double check on DB to prevent race condition
@@ -1048,9 +1102,7 @@ export default function UnifiedPortal() {
           return;
         }
 
-        const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
-
-        const { data: insertData, error: insertError } = await supabase
+        const { data: insertJournalData, error: insertJournalError } = await supabase
           .from("care_journals")
           .insert([
             {
@@ -1062,18 +1114,28 @@ export default function UnifiedPortal() {
           ])
           .select();
 
-        if (insertError) throw insertError;
+        if (insertJournalError) throw insertJournalError;
 
-        showToast("🏁 돌봄이 완료되었으며, 작성된 돌봄 일지가 DB에 저장되었습니다!");
+        // 홈화면 게시글(posts)로 회원전용 자동 등록
+        const { error: insertPostError } = await supabase
+          .from("posts")
+          .insert([newPostData]);
+
+        if (insertPostError) {
+          console.error("포스트 자동 등록 실패:", insertPostError);
+          showToast("🏁 돌봄 일지는 저장되었으나 홈화면 포스트 등록에 실패했습니다.");
+        } else {
+          showToast("🏁 돌봄 일지 및 회원 전용 홈화면 포스트가 연동되어 자동 등록되었습니다!");
+        }
+        
         fetchSupabaseJournals();
+        fetchSupabasePosts();
       } catch (err) {
         console.error("돌봄일지 DB 저장 실패 (임시 로컬 저장 전환):", err);
-        showToast("⚠️ Supabase에 'care_journals' 테이블이 없거나 오류가 있어 로컬 메모리에 저장되었습니다. (SQL 스키마 적용 필요)");
+        showToast("⚠️ Supabase 연동 오류로 로컬 메모리에 일지 및 포스트가 임시 등록되었습니다. (SQL 스키마 적용 필요)");
         setIsCareJournalTableMissing(true);
         
         // Local state fallback
-        const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
-
         const newJournal = {
           id: Date.now(),
           reservation_id: reservation.id,
@@ -1083,12 +1145,28 @@ export default function UnifiedPortal() {
           created_at: new Date().toISOString()
         };
 
-        setCareJournals(prev => [newJournal, ...prev]);
+        setCareJournals(prev => {
+          const next = [newJournal, ...prev];
+          if (typeof window !== "undefined") {
+            localStorage.setItem("yoongyopoomae_local_journals", JSON.stringify(next));
+          }
+          return next;
+        });
+
+        const newLocalPost = {
+          id: Date.now() + 1,
+          ...newPostData
+        };
+        setLocalCreatedPosts(prev => {
+          const next = [newLocalPost, ...prev];
+          if (typeof window !== "undefined") {
+            localStorage.setItem("yoongyopoomae_local_posts", JSON.stringify(next));
+          }
+          return next;
+        });
       }
     } else {
       // Simulation mode
-      const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
-
       const newJournal = {
         id: Date.now(),
         reservation_id: reservation.id,
@@ -1098,8 +1176,27 @@ export default function UnifiedPortal() {
         created_at: new Date().toISOString()
       };
 
-      setCareJournals(prev => [newJournal, ...prev]);
-      showToast("🏁 [데모 시뮬레이션] 돌봄 일지가 등록되었으며 예약이 성공적으로 종료되었습니다.");
+      setCareJournals(prev => {
+        const next = [newJournal, ...prev];
+        if (typeof window !== "undefined") {
+          localStorage.setItem("yoongyopoomae_local_journals", JSON.stringify(next));
+        }
+        return next;
+      });
+
+      const newLocalPost = {
+        id: Date.now() + 1,
+        ...newPostData
+      };
+      setLocalCreatedPosts(prev => {
+        const next = [newLocalPost, ...prev];
+        if (typeof window !== "undefined") {
+          localStorage.setItem("yoongyopoomae_local_posts", JSON.stringify(next));
+        }
+        return next;
+      });
+      
+      showToast("🏁 [데모 시뮬레이션] 돌봄 일지 등록 및 회원 전용 홈화면 포스트가 자동 등록되었습니다.");
     }
 
     setSitterReservations((prev) => {
@@ -1275,7 +1372,13 @@ export default function UnifiedPortal() {
             user_id: activeUser ? activeUser.id : null,
             created_at: new Date().toISOString()
           };
-          setPosts(prev => [newPost, ...prev]);
+          setLocalCreatedPosts(prev => {
+            const next = [newPost, ...prev];
+            if (typeof window !== "undefined") {
+              localStorage.setItem("yoongyopoomae_local_posts", JSON.stringify(next));
+            }
+            return next;
+          });
           closeCreateModal();
           showToast("🔒 [RLS 시뮬레이션 승인] 새 포스트가 등록되었습니다.");
         }, 500);
@@ -1292,12 +1395,13 @@ export default function UnifiedPortal() {
     return names[cat] || "기타";
   };
 
-  const filteredPosts = currentFilter === "all" ? posts : posts.filter(p => p.category === currentFilter);
+  const allPosts = [...localCreatedPosts, ...posts];
+  const filteredPosts = currentFilter === "all" ? allPosts : allPosts.filter(p => p.category === currentFilter);
   const calendarGridDays = getDaysInMonthGrid();
 
   // 10. 만약 URL 쿼리 파라미터로 특정 포스트가 선택되었다면 독립적인 상세 글 보기 페이지 제공
   if (detailPostId) {
-    const detailPost = posts.find(p => String(p.id) === String(detailPostId));
+    const detailPost = allPosts.find(p => String(p.id) === String(detailPostId));
     
     // 브라우저 타이틀 변경
     if (typeof document !== "undefined" && detailPost) {
@@ -1467,26 +1571,31 @@ export default function UnifiedPortal() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingTop: "118px" }}>
       
-      {/* 1. Supabase 연동 알림 배너 */}
-      {isSupabaseConfigured ? (
-        <div style={{
-          backgroundColor: "var(--success-mint-light)", color: "var(--success-mint)",
-          padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
-          borderBottom: "1px solid var(--border-light)"
-        }}>
-          🛡️ Supabase 실시간 클라우드 DB 연동 중 | 윤교품애 RLS 정책 및 스토리지 연계 완수
-        </div>
-      ) : (
-        <div style={{
-          backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
-          padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
-          borderBottom: "1px solid var(--border-light)"
-        }}>
-          ⚠️ Supabase 설정 대기 중. 로컬 RLS 및 30초 보안 타이머 시뮬레이션 모드로 가동되고 있습니다. (blog/.env.local에서 세팅 가능)
-        </div>
-      )}
+      {/* Fixed header wrapper: 배너 + 네비게이션 상단 고정 */}
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
+        boxShadow: "0 2px 12px rgba(0,0,0,0.08)"
+      }}>
+        {/* 1. Supabase 연동 알림 배너 */}
+        {isSupabaseConfigured ? (
+          <div style={{
+            backgroundColor: "var(--success-mint-light)", color: "var(--success-mint)",
+            padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
+            borderBottom: "1px solid var(--border-light)"
+          }}>
+            🛡️ Supabase 실시간 클라우드 DB 연동 중 | 윤교품애 RLS 정책 및 스토리지 연계 완수
+          </div>
+        ) : (
+          <div style={{
+            backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
+            padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
+            borderBottom: "1px solid var(--border-light)"
+          }}>
+            ⚠️ Supabase 설정 대기 중. 로컬 RLS 및 30초 보안 타이머 시뮬레이션 모드로 가동되고 있습니다. (blog/.env.local에서 세팅 가능)
+          </div>
+        )}
 
       {/* Global Toast */}
       {toast && (
@@ -1981,8 +2090,8 @@ export default function UnifiedPortal() {
       {/* ============================================================== */}
       <header style={{
         backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)",
-        position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(10px)",
-        background: "rgba(255,255,255,0.85)"
+        backdropFilter: "blur(10px)",
+        background: "rgba(255,255,255,0.92)"
       }}>
         <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "80px" }}>
           
@@ -2078,6 +2187,7 @@ export default function UnifiedPortal() {
           </div>
         </div>
       </header>
+      </div> {/* /Fixed header wrapper */}
 
       {/* ============================================================== */}
       {/* 7. PORTAL VIEW A: 🏠 YOONGYOPOOMAE HOME & BLOG */}
@@ -4836,6 +4946,30 @@ export default function UnifiedPortal() {
                           {journalPreviewText}
                         </pre>
                       </div>
+
+                      {/* 돌봄 일지 작성 확인 및 홈화면 등록 버튼 */}
+                      {!hasJournal && sitterReservations[activeReservationIndex]?.status === "started" && (
+                        <button
+                          className="btn"
+                          onClick={handleFinishCare}
+                          style={{
+                            width: "100%",
+                            padding: "16px 20px",
+                            fontSize: "1.05rem",
+                            fontWeight: "800",
+                            backgroundColor: "var(--success-mint)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "var(--border-radius-md)",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                            boxShadow: "0 4px 12px rgba(76, 175, 80, 0.2)",
+                            marginBottom: "10px"
+                          }}
+                        >
+                          ✍️ 돌봄 일지 작성 확인 및 홈화면 등록 🏁
+                        </button>
+                      )}
 
                       {/* Copy Link Share Clipboard button */}
                       <button
