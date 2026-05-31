@@ -106,48 +106,48 @@ const STATIC_BLOG_POSTS = [
 const CUSTOMERS_DB = [
   {
     id: 1,
-    client_name: "김미선 회원",
-    phone: "010-4422-9011",
+    client_name: "김미선 (샘플)",
+    phone: "010-0000-0001",
     pet_name: "보리",
     pet_age: 3,
-    address: "경상남도 거제시 고현동 123-45 102호 (기본 지역)",
-    entrance_code: "종1234#",
-    doorlock_code: "2026*",
-    entry_method_detail: "공동현관 호출 버튼을 누르고 비밀번호 입력 후 종 버튼을 눌러주세요.",
+    address: "경상남도 거제시 고현동 가상아파트 101동 101호 (기본 지역)",
+    entrance_code: "#1010*",
+    doorlock_code: "1010*",
+    entry_method_detail: "공동현관 키패드에서 비밀번호 #1010*을 차례대로 입력해 주세요.",
     parking_option: "free",
     photo_video_preference: "many",
     sns_agreement: true,
-    specialties: "신부전 초기 냥이, 매일 15:00 신부전 유도 약물 0.5cc 사료 믹스 필수, 낯가림이 매우 심해 큰 소리에 놀람."
+    specialties: "신부전 초기 냥이, 매일 15:00 신부전 약물 0.5cc 급여 요망, 소리에 예민하므로 노크 주의."
   },
   {
     id: 2,
-    client_name: "이은주 회원",
-    phone: "010-8877-3344",
+    client_name: "이은주 (샘플)",
+    phone: "010-0000-0002",
     pet_name: "먼지",
     pet_age: 15,
-    address: "경상남도 거제시 아주동 98-7 2층 (기본 지역)",
+    address: "경상남도 거제시 아주동 가상빌라 201호 (기본 지역)",
     entrance_code: "경비실 호출 후 통과",
-    doorlock_code: "9988#",
+    doorlock_code: "2010*",
     entry_method_detail: "경비실 호출 벨을 누르고 방문 돌봄 펫시터라고 말씀하신 뒤 통과해 주세요.",
     parking_option: "register",
     photo_video_preference: "many",
     sns_agreement: false,
-    specialties: "15세 노령묘, 관절염으로 높은 곳 점프 금지, 안약 하루 2회 점적 수칙, 식욕 모니터링 필요."
+    specialties: "15세 노령묘, 관절염으로 높은 곳 점프 금지, 안약 하루 2회 점적 수칙 준수 요망."
   },
   {
     id: 3,
-    client_name: "박태영 회원",
-    phone: "010-1234-5678",
+    client_name: "박태영 (샘플)",
+    phone: "010-0000-0003",
     pet_name: "레오",
     pet_age: 2,
-    address: "경상남도 거제시 하청면 하청로 45-12 401호 (기타 지역 - 추가금 +5,000원 적용)",
-    entrance_code: "열쇠 아이콘 터치 후 0401#",
-    doorlock_code: "0401*",
-    entry_method_detail: "공동현관 키패드에서 열쇠 버튼을 누르고 호실 번호 입력 후 #을 누르세요.",
+    address: "경상남도 거제시 하청면 가상주택 1층 (기타 지역 - 추가금 +5,000원 적용)",
+    entrance_code: "없음",
+    doorlock_code: "3010*",
+    entry_method_detail: "현관 도어락에 3010*를 입력한 후 손잡이를 돌려 입장해 주세요.",
     parking_option: "impossible",
     photo_video_preference: "confirmation",
     sns_agreement: true,
-    specialties: "활동량이 매우 많고 낚싯대 놀이 과격하게 30분 필요, 현관 나갈 때 탈출 충동 제어 주의."
+    specialties: "활동량이 매우 많아 장난감 놀이 30분 필요, 현관 나갈 때 고양이가 탈출하지 않도록 주의."
   }
 ];
 
@@ -156,11 +156,11 @@ const MOCK_RESERVATIONS = [
   {
     id: 101,
     customer_id: 1,
-    client_name: "김미선 회원",
+    client_name: "김미선 (샘플)",
     pet_name: "보리",
     visit_time: "오늘 15:00 - 17:00 (방문 1시간 전)",
     visit_date_string: new Date().toDateString(),
-    mandatory_requirements: "💊 보리 15시 투약 지침: 신부전 약물 0.5cc 필수 급여 및 2차 주거 보안 코드 확인 준수",
+    mandatory_requirements: "💊 보리 15시 투약 지침: 약물 0.5cc 필수 급여 및 가상 보안 코드 확인 준수",
     status: "confirmed",
     is_confirmed_by_sitter: false,
     visit_area: "고현동",
@@ -171,7 +171,7 @@ const MOCK_RESERVATIONS = [
   {
     id: 102,
     customer_id: 2,
-    client_name: "이은주 회원",
+    client_name: "이은주 (샘플)",
     pet_name: "먼지",
     visit_time: "내일 11:00 - 13:00",
     visit_date_string: new Date(Date.now() + 24 * 3600 * 1000).toDateString(),
@@ -296,14 +296,14 @@ export default function UnifiedPortal() {
   // 재신청 고객이 이전에 저장한 정보 (실제 서비스에서는 DB에서 불러옴 - 여기서는 모의 데이터)
   const MOCK_PREVIOUS_BOOKING = {
     visitArea: "고현동",
-    feedingInfo: "싱크대 아래 주황 그릇, 건식 사료 1/4컵 1일 2회, 정수된 물 사용, 참치 알러지 있음",
-    litterInfo: "거실 베란다 두부 모래 화장실, 사용 후 응고 부분 스쿱으로 제거 후 봉투에 담아 처리",
+    feedingInfo: "식기 위치 싱크대 아래 가상 보관함, 건식 사료 급여",
+    litterInfo: "화장실 모래 비우기 및 뭉친 모래 수거 제거",
     petPersonality: "낯가림 있음, 겁이 많음",
-    clientPhone: "010-4422-9011",
-    clientAddress: "경상남도 거제시 고현동 123-45 102호 (기본 지역)",
-    entranceCode: "종1234#",
-    doorlockCode: "2026*",
-    entryMethodDetail: "공동현관 호출 버튼을 누르고 비밀번호 입력 후 종 버튼을 눌러주세요.",
+    clientPhone: "010-0000-0001",
+    clientAddress: "경상남도 거제시 고현동 가상아파트 101동 101호 (기본 지역)",
+    entranceCode: "#1010*",
+    doorlockCode: "1010*",
+    entryMethodDetail: "공동현관 키패드에서 비밀번호 #1010*을 차례대로 입력해 주세요.",
     parkingOption: "free",
     photoVideoPreference: "many",
     snsAgreement: true,
@@ -313,7 +313,7 @@ export default function UnifiedPortal() {
     petCount: "1",
     bookingDateText: "5월 27일 ~ 5월 30일 매일",
     bookingTimeText: "오후 2시 선호",
-    petDetailsText: "1. 로니 (3살, 남아, 중성화 완료) - 소심하지만 다정한 아이. 사료 급여와 감자 수확 필요."
+    petDetailsText: "1. 로니 (3살, 남아, 중성화 완료) - 소심하지만 온순하고 장난감을 좋아하는 고양이입니다."
   };
 
   // 재신청 / 신규 선택 시 폼 필드 초기화 함수
