@@ -7,6 +7,13 @@ import ImageUploader from "../components/ImageUploader";
 import JournalMediaUploader from "../components/JournalMediaUploader";
 import PricingSection from "../components/PricingSection";
 
+// Safety sanitization utility to prevent XSS and raw HTML/script code execution
+const sanitizeInputText = (str) => {
+  if (typeof str !== "string") return "";
+  // Strip HTML and script tags (e.g. <svg onload=...>) to ensure raw text rendering
+  return str.replace(/<[^>]*>?/gm, "");
+};
+
 // ==============================================================
 // 1. DUMMY & SEED DATA (Conforming to blog_schema & PRD)
 // ==============================================================
@@ -40,7 +47,7 @@ const STATIC_BLOG_POSTS = [
     excerpt: "겁이 많은 보리와 친해지기 위해 조심스럽게 다가갔던 첫 날의 기록입니다. 간식 하나로 마음을 열어준 보리...",
     content: "보리는 낯가림이 아주 심하고 소리에 예민한 아이였습니다. 몸을 웅크린 채 경계했으나, 1.5m 거리를 두고 낮게 앉아 눈인사를 주고 받으며 20분간 기다렸습니다. 다행히 츄르 냄새를 맡고 천천히 걸어나와 핥아 먹었으며, 감자 2개를 캐고 모래 뒤집기 정리까지 완료했습니다. 첫 만남 치고 아주 긍정적인 신호입니다.",
     category: "log", // 'log' = 돌봄 일지
-    image_url: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=800",
+    image_url: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=max&q=80&w=800",
     is_restricted: true,
     author_name: "전윤교 펫시터",
     created_at: "2026-05-14T00:00:00.000Z"
@@ -51,7 +58,7 @@ const STATIC_BLOG_POSTS = [
     excerpt: "고양이가 물을 더 많이 마시게 하는 효율적인 배치 장소와 신선도 유지 방법 5가지를 소개합니다.",
     content: "고양이는 선천적으로 흐르는 깨끗한 물을 좋아하며, 자신의 사료 옆에 있는 물은 신선하지 않다고 여기는 야생 본능이 있습니다. 따라서 밥그릇과 물그릇은 최소 1.5미터 이상 떨어트려 집안의 길목(캣타워 밑, 거실 코너 등) 곳곳에 총 3개 이상 분산 배치해 주세요. 음수량이 최소 30% 이상 확연히 증가하게 됩니다.",
     category: "tip", // 'tip' = 전문가 팁
-    image_url: "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&q=80&w=800",
+    image_url: "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=max&q=80&w=800",
     is_restricted: false,
     author_name: "전윤교 펫시터",
     created_at: "2026-05-12T00:00:00.000Z"
@@ -62,7 +69,7 @@ const STATIC_BLOG_POSTS = [
     excerpt: "모델 뺨치는 포즈를 보여준 코코의 인생샷들을 모았습니다. 푸른 눈이 매력적인 코코의 오후 일상.",
     content: "카메라 렌즈를 두려워하지 않고 오히려 웅장한 포즈를 뽐내며 쳐다보는 샴 고양이 코코입니다. 햇살이 내리쬐는 창가 캣폴 위에서 반짝이는 푸른 눈망울이 정말 매혹적이었던 오후였습니다. 보호자님이 가장 아끼시는 특제 깃털 장난감으로 활기 넘치는 사냥 활동도 완료했습니다.",
     category: "photo", // 'photo' = 사진첩
-    image_url: "https://images.unsplash.com/photo-1513245543132-31f507417b26?auto=format&fit=crop&q=80&w=800",
+    image_url: "https://images.unsplash.com/photo-1513245543132-31f507417b26?auto=format&fit=max&q=80&w=800",
     is_restricted: true,
     author_name: "전윤교 펫시터",
     created_at: "2026-05-10T00:00:00.000Z"
@@ -73,7 +80,7 @@ const STATIC_BLOG_POSTS = [
     excerpt: "15살 먼지의 병원 방문을 도와주었습니다. 노령묘 이동 시 주의사항과 스트레스 최소화 노하우 공유.",
     content: "나이가 많은 노령묘 먼지의 정기 피검사 날이었습니다. 고양이 켄넬 내부 공간에 보호자의 냄새가 짙게 밴 수건을 깔아 안정감을 제공했고, 이동할 때 켄넬 위를 담요로 씌워 시야를 가려 이동 중 스트레스를 대폭 최소화했습니다. 수의사 소견으로 관절 보조제 증량이 필요하다고 하여 보호자 지침판에 기록했습니다.",
     category: "log",
-    image_url: "https://images.unsplash.com/photo-1495360010541-f48722b34f7d?auto=format&fit=crop&q=80&w=800",
+    image_url: "https://images.unsplash.com/photo-1495360010541-f48722b34f7d?auto=format&fit=max&q=80&w=800",
     is_restricted: false,
     author_name: "전윤교 펫시터",
     created_at: "2026-05-08T00:00:00.000Z"
@@ -84,7 +91,7 @@ const STATIC_BLOG_POSTS = [
     excerpt: "죽은 털을 확실하게 제거하고 피부병을 예방하는 전문가의 빗질 기술을 확인하세요.",
     content: "고양이가 죽은 털을 핥아 먹어 위 내 헤어볼이 뭉치면 장폐색으로 이어질 수 있습니다. 빗질 시에는 먼저 실리콘 재질의 부드러운 브러시로 결 방향에 맞춰 전체적인 죽은 털을 긁어 모은 후, 금속 재질의 촘촘한 참빗으로 꼬리부터 머리 방향으로 거꾸로 빗겨 잔여 모근 속 가려움을 해소해 주세요. 마지막에 젖은 타월로 마무리하는 것이 좋습니다.",
     category: "tip",
-    image_url: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&q=80&w=800",
+    image_url: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=max&q=80&w=800",
     is_restricted: true,
     author_name: "전윤교 펫시터",
     created_at: "2026-05-05T00:00:00.000Z"
@@ -95,7 +102,7 @@ const STATIC_BLOG_POSTS = [
     excerpt: "활동량이 어마어마한 레오를 위한 맞춤형 사냥 놀이! 30분 만에 기진맥진해서 잠든 레오의 모습.",
     content: "성묘 레오의 지칠 줄 모르는 사냥 욕구를 풀어주기 위해 카본 스틱 낚싯대 장난감을 사용했습니다. 마구 달아나는 사냥감의 불규칙한 회전을 재현해주니 공중제비 3바퀴를 성공하고 사냥에 성공해 웅장하게 그르렁거렸습니다. 30분 집중 놀이 후 꿀잠을 자며 휴식을 취하는 귀여운 모습입니다.",
     category: "photo",
-    image_url: "https://images.unsplash.com/photo-1472491235688-bdc81a63246e?auto=format&fit=crop&q=80&w=800",
+    image_url: "https://images.unsplash.com/photo-1472491235688-bdc81a63246e?auto=format&fit=max&q=80&w=800",
     is_restricted: false,
     author_name: "전윤교 펫시터",
     created_at: "2026-05-02T00:00:00.000Z"
@@ -202,6 +209,13 @@ const TIME_SLOTS_POOL = [
 export default function UnifiedPortal() {
   // Navigation: 'home' (Yoongyopoomae blog) vs 'booking' (Calendar) vs 'sitter' (Sitter Admin Panel)
   const [activePortal, setActivePortal] = useState("home"); 
+  const [bookingSubView, setBookingSubView] = useState("calculator"); // 'calculator' or 'form'
+
+  const handleGoToBooking = () => {
+    setActivePortal("booking");
+    setBookingSubView("form");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }; 
 
   // Global Auth / RLS States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -222,6 +236,8 @@ export default function UnifiedPortal() {
   const [newImageUrl, setNewImageUrl] = useState("");
   const [expandedPostId, setExpandedPostId] = useState(null);
   const [detailPostId, setDetailPostId] = useState(null);
+  const [selectedDetailPost, setSelectedDetailPost] = useState(null);
+  const [lightboxImgUrl, setLightboxImgUrl] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
   const [heroImageSrc, setHeroImageSrc] = useState("/hero.png");
   
@@ -255,6 +271,7 @@ export default function UnifiedPortal() {
   const [bookingTimeText, setBookingTimeText] = useState("");
   const [petCount, setPetCount] = useState("1");
   const [petDetailsText, setPetDetailsText] = useState("");
+  const [calculatorDays, setCalculatorDays] = useState(1);
 
   const [isHoliday, setIsHoliday] = useState(false);
   const [optPreMeet, setOptPreMeet] = useState(false);
@@ -418,6 +435,61 @@ export default function UnifiedPortal() {
     };
   };
 
+  // Sync calculator days with booking form dates
+  useEffect(() => {
+    const dCount = bookingType === "multi" ? getMultiDaysCount() : 1;
+    setCalculatorDays(dCount);
+  }, [bookingType, bookingStartDate, bookingEndDate, bookingFrequency]);
+
+  const handleCalculatorDaysChange = (newDays) => {
+    setCalculatorDays(newDays);
+    if (newDays > 1) {
+      setBookingType("multi");
+      
+      let start = bookingStartDate ? new Date(bookingStartDate) : new Date();
+      if (isNaN(start.getTime())) {
+        start = new Date();
+      }
+      
+      const end = new Date(start);
+      if (bookingFrequency === "every_other") {
+        end.setDate(start.getDate() + (newDays - 1) * 2);
+      } else {
+        end.setDate(start.getDate() + (newDays - 1));
+      }
+      
+      const year = start.getFullYear();
+      const month = String(start.getMonth() + 1).padStart(2, "0");
+      const day = String(start.getDate()).padStart(2, "0");
+      
+      const fYear = end.getFullYear();
+      const fMonth = String(end.getMonth() + 1).padStart(2, "0");
+      const fDay = String(end.getDate()).padStart(2, "0");
+      
+      setBookingStartDate(`${year}-${month}-${day}`);
+      setBookingEndDate(`${fYear}-${fMonth}-${fDay}`);
+      setBookingDateText(`${year}년 ${month}월 ${day}일 ~ ${fYear}년 ${fMonth}월 ${fDay}일 (${bookingFrequency === "daily" ? "매일" : "격일"} 방문 | 총 ${newDays}일)`);
+    } else {
+      setBookingType("single");
+    }
+  };
+
+  const toggleCalculatorOpt = (key) => {
+    if (key === "medication") setOptMedication((prev) => !prev);
+    else if (key === "forcedFeeding") setOptForcedFeeding((prev) => !prev);
+    else if (key === "hospital") setOptHospital((prev) => !prev);
+    else if (key === "twoVisits") setOptTwoVisits((prev) => !prev);
+    else if (key === "holiday") setIsHoliday((prev) => !prev);
+  };
+
+  const handleCalculatorAreaChange = (newArea) => {
+    if (newArea === "기타") {
+      setVisitArea("기타");
+    } else {
+      setVisitArea("고현"); // default to 고현
+    }
+  };
+
   // --- C. 🔒 SITTER PORTAL (ADMIN EXCLUSIVE) STATES ---
   const [sitterReservations, setSitterReservations] = useState(MOCK_RESERVATIONS);
   const [activeReservationIndex, setActiveReservationIndex] = useState(0); // Default to Bori (ID 101, 1 hour prior)
@@ -531,7 +603,7 @@ export default function UnifiedPortal() {
     const img = new Image();
     img.src = "/hero.png";
     img.onerror = () => {
-      setHeroImageSrc("https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800");
+      setHeroImageSrc("https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=max&q=80&w=800");
     };
   }, []);
 
@@ -1029,6 +1101,7 @@ export default function UnifiedPortal() {
       setPrivacyAgreement(false);
 
       setShowBookingSuccessModal(false);
+      setBookingSubView("calculator");
       showToast("📅 예약 신청 정보가 돌봄달력에 즉시 적용되었습니다.");
     }
   };
@@ -1074,12 +1147,12 @@ export default function UnifiedPortal() {
     const keywords = [...journalMeals, ...journalActivities, ...journalBowels];
     const firstImage = currentJournalMedia && currentJournalMedia.length > 0 
       ? currentJournalMedia[0] 
-      : "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=800";
+      : "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=max&q=80&w=800";
 
     const newPostData = {
-      title: `[돌봄 일지] ${reservation.client_name} 보호자님의 ${reservation.pet_name} 돌봄 일지 🐾`,
-      excerpt: `펫시터 전윤교가 작성한 ${reservation.pet_name}의 실시간 돌봄 기록입니다. (회원 전용)`,
-      content: journalPreviewText,
+      title: sanitizeInputText(`[돌봄 일지] ${reservation.client_name} 보호자님의 ${reservation.pet_name} 돌봄 일지 🐾`),
+      excerpt: sanitizeInputText(`펫시터 전윤교가 작성한 ${reservation.pet_name}의 실시간 돌봄 기록입니다. (회원 전용)`),
+      content: sanitizeInputText(journalPreviewText),
       category: "log",
       image_url: firstImage,
       is_restricted: true,
@@ -1214,13 +1287,18 @@ export default function UnifiedPortal() {
 
   // --- A. BLOG PORTAL HANDLERS ---
   const handlePostCardClick = (post) => {
+    // Normalize image url properties to guarantee data flow under all properties (image_url, imageUrl, imgUrl, image)
+    const normalizedPost = {
+      ...post,
+      image_url: post.image_url || post.imageUrl || post.imgUrl || post.image || ""
+    };
     // If restricted and not logged in (or logged in but not VIP/Admin/Member)
     const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "sitter" || activeUser.role === "admin");
     if (post.is_restricted && !hasAccess) {
-      setRestrictedPostTitle(post.title);
+      setRestrictedPostTitle(sanitizeInputText(post.title));
       setShowRestrictedModal(true);
     } else {
-      window.open(`/?post_id=${post.id}`, '_blank');
+      setSelectedDetailPost(normalizedPost);
     }
   };
 
@@ -1280,7 +1358,7 @@ export default function UnifiedPortal() {
     }
     setIsSubmitting(true);
 
-    const imageUrl = newImageUrl || "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800";
+    const imageUrl = newImageUrl || "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=max&q=80&w=800";
 
     if (editingPostId) {
       // 1) 대상 포스트 가져오기
@@ -1299,9 +1377,9 @@ export default function UnifiedPortal() {
         const { error } = await supabase
           .from("posts")
           .update({
-            title: newTitle,
-            excerpt: newContent.slice(0, 80) + "...",
-            content: newContent,
+            title: sanitizeInputText(newTitle),
+            excerpt: sanitizeInputText(newContent).slice(0, 80) + "...",
+            content: sanitizeInputText(newContent),
             category: newCategory,
             image_url: imageUrl,
             is_restricted: newIsRestricted
@@ -1323,9 +1401,9 @@ export default function UnifiedPortal() {
               p.id === editingPostId
                 ? {
                     ...p,
-                    title: newTitle,
-                    excerpt: newContent.slice(0, 80) + "...",
-                    content: newContent,
+                    title: sanitizeInputText(newTitle),
+                    excerpt: sanitizeInputText(newContent).slice(0, 80) + "...",
+                    content: sanitizeInputText(newContent),
                     category: newCategory,
                     image_url: imageUrl,
                     is_restricted: newIsRestricted
@@ -1340,9 +1418,9 @@ export default function UnifiedPortal() {
     } else {
       if (isSupabaseConfigured) {
         const { error } = await supabase.from("posts").insert([{
-          title: newTitle,
-          excerpt: newContent.slice(0, 80) + "...",
-          content: newContent,
+          title: sanitizeInputText(newTitle),
+          excerpt: sanitizeInputText(newContent).slice(0, 80) + "...",
+          content: sanitizeInputText(newContent),
           category: newCategory,
           image_url: imageUrl,
           is_restricted: newIsRestricted,
@@ -1362,9 +1440,9 @@ export default function UnifiedPortal() {
           setIsSubmitting(false);
           const newPost = {
             id: Date.now(),
-            title: newTitle,
-            excerpt: newContent.slice(0, 80) + "...",
-            content: newContent,
+            title: sanitizeInputText(newTitle),
+            excerpt: sanitizeInputText(newContent).slice(0, 80) + "...",
+            content: sanitizeInputText(newContent),
             category: newCategory,
             image_url: imageUrl,
             is_restricted: newIsRestricted,
@@ -1421,7 +1499,7 @@ export default function UnifiedPortal() {
     
     // 브라우저 타이틀 변경
     if (typeof document !== "undefined" && detailPost) {
-      document.title = `${detailPost.title} - 윤교품애 블로그`;
+      document.title = `${sanitizeInputText(detailPost.title)} - 윤교품애 블로그`;
     }
 
     return (
@@ -1499,26 +1577,60 @@ export default function UnifiedPortal() {
                 marginBottom: "24px",
                 wordBreak: "keep-all"
               }}>
-                {detailPost.title}
+                {sanitizeInputText(detailPost.title)}
               </h1>
 
-              {/* 이미지 */}
-              {detailPost.image_url && (
-                <div style={{
-                  width: "100%",
-                  maxHeight: "450px",
-                  overflow: "hidden",
-                  borderRadius: "var(--border-radius-md)",
-                  marginBottom: "32px",
-                  border: "1px solid var(--border-light)"
-                }}>
-                  <img
-                    src={detailPost.image_url}
-                    alt={detailPost.title}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                </div>
-              )}
+              {detailPost.image_url && (() => {
+                const imgUrl = (detailPost.image_url || "").replace("fit=crop", "fit=max");
+                return (
+                  <div 
+                    onClick={() => setLightboxImgUrl(imgUrl)}
+                    style={{
+                      width: "100%",
+                      borderRadius: "var(--border-radius-md)",
+                      marginBottom: "32px",
+                      border: "1px solid var(--border-light)",
+                      backgroundColor: "var(--bg-secondary)",
+                      overflow: "hidden",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                      position: "relative"
+                    }}
+                  >
+                    <img
+                      src={imgUrl}
+                      alt={sanitizeInputText(detailPost.title)}
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                        maxHeight: "550px",
+                        objectFit: "contain",
+                        display: "block"
+                      }}
+                    />
+                    {/* Lightbox Badge Indicator */}
+                    <div style={{
+                      position: "absolute",
+                      bottom: "12px",
+                      right: "12px",
+                      backgroundColor: "rgba(22, 31, 56, 0.7)",
+                      backdropFilter: "blur(4px)",
+                      color: "white",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      pointerEvents: "none",
+                      border: "1px solid rgba(255, 255, 255, 0.15)"
+                    }}>
+                      🔍 원본 이미지 (클릭 시 전체크기)
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 본문 텍스트 */}
               <div style={{
@@ -1530,7 +1642,7 @@ export default function UnifiedPortal() {
                 wordBreak: "keep-all",
                 marginBottom: "40px"
               }}>
-                {detailPost.content}
+                {sanitizeInputText(detailPost.content)}
               </div>
 
               {/* 닫기 / 이전 화면으로 가기 */}
@@ -1587,7 +1699,7 @@ export default function UnifiedPortal() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingTop: "118px" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingTop: "150px" }}>
       
       {/* Fixed header wrapper: 배너 + 네비게이션 상단 고정 */}
       <div style={{
@@ -1854,6 +1966,278 @@ export default function UnifiedPortal() {
                 돌아가기
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 3.5. BLOG POST DETAIL MODAL */}
+      {/* ============================================================== */}
+      {selectedDetailPost && (
+        <div 
+          onClick={() => setSelectedDetailPost(null)}
+          style={{
+            position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+            backgroundColor: "rgba(22, 31, 56, 0.7)", display: "flex", alignItems: "center",
+            justifyContent: "center", zIndex: 1200, backdropFilter: "blur(8px)"
+          }}
+        >
+          <div 
+            className="premium-card animate-fade-in" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              maxWidth: "650px", 
+              width: "90%", 
+              maxHeight: "85vh", 
+              overflowY: "auto", 
+              padding: "clamp(20px, 5vw, 32px)", 
+              position: "relative",
+              backgroundColor: "white",
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px"
+            }}
+          >
+            {/* Close Button X on top-right */}
+            <button
+              onClick={() => setSelectedDetailPost(null)}
+              style={{
+                position: "absolute",
+                top: "clamp(12px, 3vw, 20px)",
+                right: "clamp(12px, 3vw, 20px)",
+                background: "none",
+                border: "none",
+                fontSize: "1.5rem",
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                zIndex: 10,
+                transition: "color 0.2s"
+              }}
+              onMouseEnter={(e) => e.target.style.color = "var(--primary-orange)"}
+              onMouseLeave={(e) => e.target.style.color = "var(--text-muted)"}
+            >
+              ✕
+            </button>
+
+            {/* Premium Top Image with Fallback handling */}
+            {(() => {
+              const rawImgUrl = selectedDetailPost.image_url || selectedDetailPost.imageUrl || selectedDetailPost.imgUrl || selectedDetailPost.image;
+              const imgUrl = rawImgUrl ? rawImgUrl.replace("fit=crop", "fit=max") : "";
+              if (imgUrl) {
+                return (
+                  <div 
+                    onClick={() => setLightboxImgUrl(imgUrl)}
+                    style={{
+                      width: "100%",
+                      borderRadius: "var(--border-radius-md)",
+                      border: "1px solid var(--border-light)",
+                      marginTop: "10px",
+                      backgroundColor: "var(--bg-secondary)",
+                      overflow: "hidden",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                      position: "relative"
+                    }}
+                  >
+                    <img
+                      src={imgUrl}
+                      alt={sanitizeInputText(selectedDetailPost.title)}
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                        maxHeight: "500px",
+                        objectFit: "contain",
+                        display: "block"
+                      }}
+                      onError={(e) => {
+                        e.target.src = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=max&q=80&w=800";
+                      }}
+                    />
+                    {/* Lightbox Badge Indicator */}
+                    <div style={{
+                      position: "absolute",
+                      bottom: "12px",
+                      right: "12px",
+                      backgroundColor: "rgba(22, 31, 56, 0.7)",
+                      backdropFilter: "blur(4px)",
+                      color: "white",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      pointerEvents: "none",
+                      border: "1px solid rgba(255, 255, 255, 0.15)"
+                    }}>
+                      🔍 원본 이미지 (클릭 시 전체크기)
+                    </div>
+                  </div>
+                );
+              }
+              // Beautiful solid/gradient placeholder bar when image is absent
+              return (
+                <div style={{
+                  width: "100%",
+                  height: "8px",
+                  background: "linear-gradient(to right, var(--primary-orange), var(--warning-coral))",
+                  borderRadius: "var(--border-radius-full)",
+                  marginTop: "10px"
+                }} />
+              );
+            })()}
+
+            {/* Category and Date */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span className="badge badge-tag" style={{
+                backgroundColor: "var(--primary-orange-light)",
+                color: "var(--primary-orange)",
+                fontSize: "0.8rem",
+                padding: "6px 12px",
+                borderRadius: "100px",
+                fontWeight: "750"
+              }}>
+                {getCategoryName(selectedDetailPost.category)}
+              </span>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: "600" }}>
+                📅 {selectedDetailPost.created_at ? new Date(selectedDetailPost.created_at).toLocaleDateString("ko-KR", {
+                  year: "numeric", month: "long", day: "numeric"
+                }) : "작성일 미상"}
+              </span>
+            </div>
+
+            {/* Title */}
+            <h2 style={{
+              fontSize: "clamp(1.25rem, 4vw, 1.6rem)",
+              fontWeight: "900",
+              color: "var(--text-main)",
+              lineHeight: "1.4",
+              margin: 0,
+              wordBreak: "keep-all",
+              paddingRight: "24px"
+            }}>
+              {sanitizeInputText(selectedDetailPost.title)}
+              {selectedDetailPost.is_restricted && <span style={{ marginLeft: "6px", color: "var(--primary-orange)" }}>🔒</span>}
+            </h2>
+
+            {/* Author */}
+            <div style={{ 
+              fontSize: "0.9rem", 
+              color: "var(--text-muted)", 
+              fontWeight: "600",
+              borderBottom: "1px solid var(--border-light)",
+              paddingBottom: "12px"
+            }}>
+              👤 작성자: {selectedDetailPost.author_name || "전윤교 펫시터"}
+            </div>
+
+            {/* Content text */}
+            <div style={{
+              fontSize: "1rem",
+              color: "var(--text-main)",
+              lineHeight: "1.75",
+              whiteSpace: "pre-wrap",
+              textAlign: "left",
+              wordBreak: "keep-all"
+            }}>
+              {sanitizeInputText(selectedDetailPost.content)}
+            </div>
+
+            {/* Footer with close button */}
+            <div style={{ display: "flex", borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
+              <button
+                onClick={() => setSelectedDetailPost(null)}
+                className="btn btn-secondary"
+                style={{ width: "100%", padding: "14px 20px", fontSize: "1rem" }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3.1 IMAGE LIGHTBOX OVERLAY */}
+      {lightboxImgUrl && (
+        <div
+          onClick={() => setLightboxImgUrl(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(22, 31, 56, 0.9)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            backdropFilter: "blur(8px)"
+          }}
+        >
+          {/* Close Button X on top-right of screen */}
+          <button
+            onClick={() => setLightboxImgUrl(null)}
+            style={{
+              position: "absolute",
+              top: "20px",
+              right: "20px",
+              background: "rgba(255, 255, 255, 0.15)",
+              border: "none",
+              borderRadius: "50%",
+              width: "44px",
+              height: "44px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.5rem",
+              cursor: "pointer",
+              color: "white",
+              zIndex: 10,
+              backdropFilter: "blur(4px)",
+              transition: "var(--transition-fast)",
+              border: "1px solid rgba(255, 255, 255, 0.2)"
+            }}
+            onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.3)"}
+            onMouseLeave={(e) => e.target.style.background = "rgba(255, 255, 255, 0.15)"}
+          >
+            ✕
+          </button>
+
+          <div style={{
+            position: "relative",
+            width: "90%",
+            maxWidth: "90vw",
+            maxHeight: "85vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center"
+          }}>
+            <img
+              src={lightboxImgUrl}
+              alt="원본 이미지"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "85vh",
+                objectFit: "contain",
+                borderRadius: "var(--border-radius-md)",
+                boxShadow: "var(--shadow-lg)",
+                border: "1px solid rgba(255, 255, 255, 0.1)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div style={{
+            color: "rgba(255, 255, 255, 0.7)",
+            fontSize: "0.85rem",
+            marginTop: "16px",
+            textAlign: "center",
+            fontWeight: "500",
+            pointerEvents: "none"
+          }}>
+            바깥 영역을 클릭하면 닫힙니다.
           </div>
         </div>
       )}
@@ -2137,27 +2521,34 @@ export default function UnifiedPortal() {
 
           {/* Top Tabs - Merged client HTML site & NextJS Portal */}
           <div style={{
-            display: "flex", backgroundColor: "var(--bg-primary)", padding: "5px",
-            borderRadius: "var(--border-radius-full)", border: "1px solid var(--border-light)"
+            display: "flex", 
+            backgroundColor: "var(--success-mint-light)",
+            padding: "5px",
+            borderRadius: "var(--border-radius-full)", 
+            border: "1.5px solid hsl(150, 30%, 75%)",
+            boxShadow: "0 8px 24px rgba(22, 31, 56, 0.08)"
           }}>
             <button
               onClick={() => setActivePortal("home")}
               style={{
                 border: "none", background: activePortal === "home" ? "var(--primary-orange)" : "transparent",
-                color: activePortal === "home" ? "white" : "var(--text-muted)",
+                color: activePortal === "home" ? "white" : "hsl(150, 50%, 25%)",
                 padding: "8px 18px", borderRadius: "var(--border-radius-full)",
-                fontSize: "0.85rem", fontWeight: "700", cursor: "pointer", transition: "var(--transition-fast)"
+                fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
               }}
             >
               🏠 윤교품애 홈
             </button>
             <button
-              onClick={() => setActivePortal("booking")}
+              onClick={() => {
+                setActivePortal("booking");
+                setBookingSubView("calculator");
+              }}
               style={{
                 border: "none", background: activePortal === "booking" ? "var(--primary-orange)" : "transparent",
-                color: activePortal === "booking" ? "white" : "var(--text-muted)",
+                color: activePortal === "booking" ? "white" : "hsl(150, 50%, 25%)",
                 padding: "8px 18px", borderRadius: "var(--border-radius-full)",
-                fontSize: "0.85rem", fontWeight: "700", cursor: "pointer", transition: "var(--transition-fast)"
+                fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
               }}
             >
               📅 실시간 캘린더 예약
@@ -2175,9 +2566,9 @@ export default function UnifiedPortal() {
               }}
               style={{
                 border: "none", background: activePortal === "sitter" ? "var(--primary-orange)" : "transparent",
-                color: activePortal === "sitter" ? "white" : "var(--text-muted)",
+                color: activePortal === "sitter" ? "white" : "hsl(150, 50%, 25%)",
                 padding: "8px 18px", borderRadius: "var(--border-radius-full)",
-                fontSize: "0.85rem", fontWeight: "700", cursor: "pointer", transition: "var(--transition-fast)"
+                fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
               }}
             >
               🔒 펫시터 대시보드
@@ -2616,7 +3007,7 @@ export default function UnifiedPortal() {
                           backgroundRepeat: "no-repeat",
                           transition: "var(--transition-smooth)"
                         }}
-                        aria-label={post.title}
+                        aria-label={sanitizeInputText(post.title)}
                       >
                         <span style={{
                           position: "absolute", top: "12px", right: "12px",
@@ -2649,7 +3040,7 @@ export default function UnifiedPortal() {
                         </div>
 
                         <h3 style={{ fontSize: "1.15rem", fontWeight: "800", color: "var(--text-main)", lineHeight: "1.4" }}>
-                          {post.title}
+                          {sanitizeInputText(post.title)}
                           {post.is_restricted && <span style={{ marginLeft: "6px", color: "var(--primary-orange)" }}>🔒</span>}
                         </h3>
 
@@ -2664,7 +3055,7 @@ export default function UnifiedPortal() {
                           paddingRight: isExpanded ? "6px" : "0",
                           margin: 0
                         }}>
-                          {post.content}
+                          {sanitizeInputText(post.content)}
                         </p>
                       </div>
 
@@ -2695,7 +3086,18 @@ export default function UnifiedPortal() {
                         justifyContent: "space-between",
                         alignItems: "center"
                       }}>
-                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePostCardClick(post);
+                          }}
+                          style={{ 
+                            fontSize: "0.8rem", 
+                            color: "var(--text-muted)",
+                            cursor: "pointer",
+                            fontWeight: "700"
+                          }}
+                        >
                           {isLocked ? "🔒 클릭하여 회원권 로그인" : isExpanded ? "▲ 접기" : "▼ 클릭하여 전체 읽기"}
                         </span>
 
@@ -2741,25 +3143,91 @@ export default function UnifiedPortal() {
       <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0", display: activePortal === "booking" ? "block" : "none" }}>
           <div className="container" style={{ maxWidth: "1000px" }}>
             
-            <div style={{ textAlign: "center", marginBottom: "36px" }}>
-              <span style={{
-                backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
-                fontSize: "0.8rem", fontWeight: "700", padding: "6px 14px", borderRadius: "20px"
-              }}>
-                보호자 전용 실시간 돌봄 간편 예약 채널 📅
-              </span>
-              <h2 style={{ fontSize: "2rem", color: "var(--text-main)", fontWeight: "800", marginTop: "12px", marginBottom: "8px" }}>
-                실시간 돌봄 예약
-              </h2>
-              <p style={{ fontSize: "0.95rem", color: "var(--text-muted)" }}>
-                캘린더에서 원하시는 날짜와 여유 시간대를 선택해 주시면 전문 펫시터 전윤교님이 집으로 직접 찾아갑니다.
-              </p>
-            </div>
+            {bookingSubView === "calculator" ? (
+              <>
+                <div style={{ textAlign: "center", marginBottom: "36px" }}>
+                  <span style={{
+                    backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
+                    fontSize: "0.8rem", fontWeight: "700", padding: "6px 14px", borderRadius: "20px"
+                  }}>
+                    보호자 전용 실시간 돌봄 간편 예약 채널 📅
+                  </span>
+                  <h2 style={{ fontSize: "2rem", color: "var(--text-main)", fontWeight: "800", marginTop: "12px", marginBottom: "8px" }}>
+                    실시간 돌봄 예약 - 예상 요금 계산
+                  </h2>
+                  <p style={{ fontSize: "0.95rem", color: "var(--text-muted)" }}>
+                    옵션을 선택하여 최종 예상 요금을 실시간으로 조회하고 예약 단계로 진행하실 수 있습니다.
+                  </p>
+                </div>
 
-            {/* 실시간 요금 계산기 및 요금표 */}
-            <PricingSection />
+                <PricingSection 
+                  onBookingClick={handleGoToBooking}
+                  days={calculatorDays}
+                  setDays={handleCalculatorDaysChange}
+                  area={visitArea === "기타" ? "기타" : "기본"}
+                  setArea={handleCalculatorAreaChange}
+                  opts={{
+                    medication: optMedication,
+                    forcedFeeding: optForcedFeeding,
+                    hospital: optHospital,
+                    twoVisits: optTwoVisits,
+                    holiday: isHoliday
+                  }}
+                  toggleOpt={toggleCalculatorOpt}
+                />
+              </>
+            ) : (
+              <>
+                {/* 뒤로가기 버튼 */}
+                <div style={{ marginBottom: "24px" }}>
+                  <button
+                    onClick={() => {
+                      setBookingSubView("calculator");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    style={{
+                      border: "none",
+                      color: "hsl(150, 50%, 25%)",
+                      padding: "8px 16px",
+                      borderRadius: "var(--border-radius-full)",
+                      fontSize: "0.85rem",
+                      fontWeight: "750",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      border: "1.5px solid hsl(150, 30%, 75%)",
+                      backgroundColor: "var(--success-mint-light)",
+                      transition: "var(--transition-fast)",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "hsl(150, 30%, 88%)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--success-mint-light)";
+                    }}
+                  >
+                    ⬅️ 예상 요금 계산기로 돌아가기
+                  </button>
+                </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "32px", alignItems: "flex-start" }}>
+                <div style={{ textAlign: "center", marginBottom: "36px" }}>
+                  <span style={{
+                    backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
+                    fontSize: "0.8rem", fontWeight: "700", padding: "6px 14px", borderRadius: "20px"
+                  }}>
+                    보호자 전용 실시간 돌봄 간편 예약 채널 📅
+                  </span>
+                  <h2 style={{ fontSize: "2rem", color: "var(--text-main)", fontWeight: "800", marginTop: "12px", marginBottom: "8px" }}>
+                    돌봄 예약 세부 사항 입력
+                  </h2>
+                  <p style={{ fontSize: "0.95rem", color: "var(--text-muted)" }}>
+                    캘린더에서 원하시는 날짜와 여유 시간대를 선택해 주시면 전문 펫시터 전윤교님이 집으로 직접 찾아갑니다.
+                  </p>
+                </div>
+
+                <div id="booking-form-start" style={{ display: "flex", flexWrap: "wrap", gap: "32px", alignItems: "flex-start" }}>
               
               {/* Left Column: Calendar & Times */}
               <div style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -2783,7 +3251,7 @@ export default function UnifiedPortal() {
                     {["일", "월", "화", "수", "목", "금", "토"].map(d => <span key={d}>{d}</span>)}
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "clamp(3px, 1vw, 8px)" }}>
                     {calendarGridDays.map((dayObj, index) => {
                       const isSelected = selectedDate && dayObj.date && selectedDate.toDateString() === dayObj.date.toDateString();
                       
@@ -2795,14 +3263,14 @@ export default function UnifiedPortal() {
                           style={{
                             border: "none",
                             borderRadius: "var(--border-radius-sm)",
-                            minHeight: "56px",
+                            minHeight: "clamp(40px, 8vw, 56px)",
                             height: "auto",
-                            padding: "6px 2px",
+                            padding: "clamp(4px, 1vw, 6px) clamp(1px, 0.5vw, 2px)",
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: "0.95rem",
+                            fontSize: "clamp(0.75rem, 1.8vw, 0.95rem)",
                             fontWeight: "700",
                             cursor: (dayObj.isPast || !dayObj.day) ? "not-allowed" : "pointer",
                             backgroundColor: isSelected 
@@ -4010,8 +4478,10 @@ export default function UnifiedPortal() {
               </div>
 
             </div>
-          </div>
-        </main>
+          </>
+        )}
+      </div>
+    </main>
 
       {/* ============================================================== */}
       {/* 9. PORTAL VIEW C: 🔒 펫시터 전용 관리 대시보드 (Admin Panel) */}
@@ -4092,25 +4562,25 @@ export default function UnifiedPortal() {
               </div>
 
               {/* 펫시터 달력 뷰 (Sitter Calendar Grid) */}
-              <div className="premium-card" style={{ padding: "20px", backgroundColor: "white", borderRadius: "12px", border: "1px solid var(--border-light)" }}>
-                <span style={{ fontSize: "0.9rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "16px" }}>
+              <div className="premium-card" style={{ padding: "clamp(12px, 3vw, 20px)", backgroundColor: "white", borderRadius: "12px", border: "1px solid var(--border-light)" }}>
+                <span style={{ fontSize: "clamp(0.8rem, 2vw, 0.9rem)", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "16px" }}>
                   📅 펫시터 돌봄 통합 캘린더 (날짜/배지를 클릭하면 해당 예약으로 즉시 전환됩니다)
                 </span>
 
                 {/* 요일 헤더 */}
                 <div style={{
                   display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
-                  textAlign: "center", fontWeight: "700", fontSize: "0.8rem",
+                  textAlign: "center", fontWeight: "700", fontSize: "clamp(0.65rem, 1.5vw, 0.8rem)",
                   color: "var(--text-muted)", marginBottom: "10px"
                 }}>
                   {["일", "월", "화", "수", "목", "금", "토"].map(d => <span key={d}>{d}</span>)}
                 </div>
 
                 {/* 날짜 그리드 */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "clamp(2px, 0.8vw, 8px)" }}>
                   {calendarGridDays.map((dayObj, index) => {
                     if (!dayObj.day || !dayObj.date) {
-                      return <div key={index} style={{ minHeight: "80px", backgroundColor: "var(--bg-primary)", opacity: 0.35, borderRadius: "4px" }} />;
+                      return <div key={index} style={{ minHeight: "clamp(50px, 8vw, 80px)", backgroundColor: "var(--bg-primary)", opacity: 0.35, borderRadius: "4px" }} />;
                     }
 
                     // Find reservations on this date
@@ -4125,17 +4595,18 @@ export default function UnifiedPortal() {
                         key={index}
                         style={{
                           borderRadius: "var(--border-radius-sm)",
-                          minHeight: "80px",
-                          padding: "6px",
+                          minHeight: "clamp(50px, 8vw, 80px)",
+                          padding: "clamp(3px, 1vw, 6px)",
                           display: "flex",
                           flexDirection: "column",
                           alignItems: "flex-start",
                           justifyContent: "flex-start",
-                          fontSize: "0.85rem",
+                          fontSize: "clamp(0.7rem, 1.6vw, 0.85rem)",
                           backgroundColor: "var(--bg-secondary)",
                           border: "1.5px solid var(--border-light)",
                           transition: "all 0.15s ease",
-                          position: "relative"
+                          position: "relative",
+                          minWidth: 0
                         }}
                       >
                         {/* 날짜 번호 */}
@@ -4143,13 +4614,13 @@ export default function UnifiedPortal() {
                           fontWeight: "800", 
                           color: "var(--text-main)", 
                           marginBottom: "4px",
-                          fontSize: "0.9rem"
+                          fontSize: "clamp(0.75rem, 1.5vw, 0.9rem)"
                         }}>
                           {dayObj.day}
                         </span>
 
                         {/* 예약 리스트 */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%" }}>
                           {reservationsOnDay.map((res) => {
                             const isActive = activeReservationIndex === res.originalIndex;
                             let badgeBg = "var(--bg-primary)";
@@ -4177,12 +4648,12 @@ export default function UnifiedPortal() {
                                   setChecklistReq3(res.status === "started" || res.status === "completed");
                                 }}
                                 style={{
-                                  padding: "4px 6px",
+                                  padding: "clamp(2px, 0.5vw, 4px) clamp(3px, 0.8vw, 6px)",
                                   borderRadius: "4px",
                                   backgroundColor: isActive ? "var(--primary-orange)" : badgeBg,
                                   color: isActive ? "white" : badgeColor,
-                                  fontSize: "0.7rem",
-                                  fontWeight: "800",
+                                  fontSize: "clamp(0.55rem, 1.2vw, 0.7rem)",
+                                  fontWeight: "850",
                                   cursor: "pointer",
                                   border: isActive ? "1px solid var(--primary-orange)" : "1px solid transparent",
                                   display: "flex",
@@ -4197,7 +4668,7 @@ export default function UnifiedPortal() {
                                 title={`${res.client_name} (${res.pet_name}) - ${res.visit_time}`}
                               >
                                 {res.status === "completed" ? "✅" : res.status === "started" ? "⚡" : "📅"}
-                                {res.pet_name} ({res.visit_time})
+                                {res.pet_name}
                               </div>
                             );
                           })}

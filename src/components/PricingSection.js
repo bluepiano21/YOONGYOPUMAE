@@ -13,16 +13,15 @@ const ADD_ON_OPTIONS = [
   { key: "holiday",       label: "🎉 공휴일 / 명절",   desc: "",              price: 5000  },
 ];
 
-export default function PricingSection({ onBookingClick }) {
-  const [days, setDays]   = useState(1);
-  const [area, setArea]   = useState("기본");
-  const [opts, setOpts]   = useState({
-    medication: false, forcedFeeding: false,
-    hospital: false, twoVisits: false, holiday: false,
-  });
-
-  const toggleOpt = (key) =>
-    setOpts((prev) => ({ ...prev, [key]: !prev[key] }));
+export default function PricingSection({
+  onBookingClick,
+  days,
+  setDays,
+  area,
+  setArea,
+  opts,
+  toggleOpt
+}) {
 
   const basePrice  = 17000 * days;
   const extraPrice =
@@ -200,12 +199,12 @@ export default function PricingSection({ onBookingClick }) {
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
                   <button
-                    onClick={() => setDays((d) => Math.max(1, d - 1))}
+                    onClick={() => setDays(Math.max(1, days - 1))}
                     style={{ width: "36px", height: "36px", borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: "1.2rem", cursor: "pointer" }}
                   >−</button>
                   <span style={{ fontSize: "1.5rem", fontWeight: "800", color: "white", minWidth: "36px", textAlign: "center" }}>{days}</span>
                   <button
-                    onClick={() => setDays((d) => Math.min(30, d + 1))}
+                    onClick={() => setDays(Math.min(30, days + 1))}
                     style={{ width: "36px", height: "36px", borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: "1.2rem", cursor: "pointer" }}
                   >+</button>
                   <span style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.55)" }}>일</span>
@@ -305,10 +304,32 @@ export default function PricingSection({ onBookingClick }) {
               {onBookingClick && (
                 <button
                   onClick={onBookingClick}
-                  className="btn btn-primary"
-                  style={{ width: "100%", padding: "14px", fontSize: "0.95rem", fontWeight: "800", marginTop: "16px" }}
+                  style={{
+                    width: "100%", 
+                    padding: "16px 20px", 
+                    fontSize: "1.05rem", 
+                    fontWeight: "850", 
+                    marginTop: "20px",
+                    backgroundColor: "var(--primary-orange)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    boxShadow: "0 6px 20px rgba(255, 112, 67, 0.3)",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 112, 67, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--primary-orange)";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(255, 112, 67, 0.3)";
+                  }}
                 >
-                  📅 이 요금으로 예약 신청하기 →
+                  📅 예약하러 가기 ➔
                 </button>
               )}
             </div>
