@@ -310,6 +310,15 @@ export default function UnifiedPortal() {
   const [returningFoundCustomer, setReturningFoundCustomer] = useState(null);
   const [returningSearchDone, setReturningSearchDone] = useState(false);
 
+  // --- 내 예약 관리 모달 상태 ---
+  const [showMyReservationModal, setShowMyReservationModal] = useState(false);
+  const [myReservationTarget, setMyReservationTarget] = useState(null); // 선택된 예약 객체
+  const [isEditingReservation, setIsEditingReservation] = useState(false); // 수정 모드 여부
+  const [editResVisitTime, setEditResVisitTime] = useState("");
+  const [editResVisitArea, setEditResVisitArea] = useState("");
+  const [editResOptions, setEditResOptions] = useState([]); // 선택 옵션 배열
+  const [editResIsSaving, setEditResIsSaving] = useState(false);
+
   // 재신청 고객이 이전에 저장한 정보 (실제 서비스에서는 DB에서 불러옴 - 여기서는 모의 데이터)
   const MOCK_PREVIOUS_BOOKING = {
     visitArea: "고현동",
@@ -382,6 +391,65 @@ export default function UnifiedPortal() {
     return sitterReservations.some(res => 
       res.visit_date_string === dateString && res.visit_time.includes(slot.time)
     );
+  };
+
+  // --- 내 예약 관리 모달 핸들러 ---
+  const openMyReservationModal = (reservation) => {
+    setMyReservationTarget(reservation);
+    setIsEditingReservation(false);
+    setEditResVisitTime(reservation.visit_time || "");
+    setEditResVisitArea(reservation.visit_area || "");
+    setEditResOptions([...(reservation.selected_options || [])]);
+    setShowMyReservationModal(true);
+  };
+
+  const closeMyReservationModal = () => {
+    setShowMyReservationModal(false);
+    setMyReservationTarget(null);
+    setIsEditingReservation(false);
+    setEditResIsSaving(false);
+  };
+
+  const handleSaveReservationEdit = async () => {
+    if (!myReservationTarget) return;
+    setEditResIsSaving(true);
+
+    const updatedReservation = {
+      ...myReservationTarget,
+      visit_time: editResVisitTime,
+      visit_area: editResVisitArea,
+      selected_options: editResOptions,
+    };
+
+    // Supabase 실시간 저장 (연동 시)
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from("reservations")
+          .update({
+            visit_time: editResVisitTime,
+            visit_area: editResVisitArea,
+            selected_options: editResOptions,
+          })
+          .eq("id", myReservationTarget.id);
+
+        if (error) throw error;
+        showToast("✅ 예약 정보가 Supabase에 업데이트되었습니다.");
+      } catch (err) {
+        showToast(`❌ 저장 실패: ${err.message}`);
+        setEditResIsSaving(false);
+        return;
+      }
+    }
+
+    // 로컬 상태 업데이트 (Mock 모드 및 Supabase 연동 모두 적용)
+    setSitterReservations((prev) =>
+      prev.map((r) => (r.id === myReservationTarget.id ? updatedReservation : r))
+    );
+    setMyReservationTarget(updatedReservation);
+    setIsEditingReservation(false);
+    setEditResIsSaving(false);
+    showToast("✅ 예약 정보가 수정되었습니다.");
   };
 
   // Sync selected time slot text to bookingTimeText
@@ -1731,6 +1799,212 @@ export default function UnifiedPortal() {
           <div className="toast">
             <span className="toast-icon">🛎️</span>
             <span>{toast}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 1-B. 내 예약 상세보기 / 수정 모달 (보호자 전용) */}
+      {/* ============================================================== */}
+      {showMyReservationModal && myReservationTarget && (
+        <div
+          onClick={closeMyReservationModal}
+          style={{
+            position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+            backgroundColor: "rgba(22, 31, 56, 0.65)", display: "flex", alignItems: "center",
+            justifyContent: "center", zIndex: 1050, backdropFilter: "blur(6px)"
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="premium-card animate-fade-in"
+            style={{
+              width: "90%", maxWidth: "580px", maxHeight: "90vh",
+              overflowY: "auto", padding: "36px 32px",
+              backgroundColor: "white", borderRadius: "var(--border-radius-lg)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              border: "2px solid var(--success-mint)",
+              position: "relative",
+            }}
+          >
+            {/* 헤더 */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+              <div>
+                <span style={{ fontSize: "0.75rem", backgroundColor: "var(--success-mint-light)", color: "var(--success-mint)", padding: "4px 10px", borderRadius: "12px", fontWeight: "800", display: "inline-block", marginBottom: "8px" }}>
+                  📋 내 예약 상세
+                </span>
+                <h3 style={{ fontSize: "1.4rem", fontWeight: "900", color: "var(--text-main)", margin: 0 }}>
+                  🐾 {myReservationTarget.pet_name}의 예약
+                </h3>
+              </div>
+              <button
+                onClick={closeMyReservationModal}
+                style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--text-muted)", lineHeight: 1 }}
+              >✕</button>
+            </div>
+
+            {/* 예약 정보 읽기 모드 */}
+            {!isEditingReservation ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {[
+                  { icon: "📅", label: "방문 일시", value: myReservationTarget.visit_time },
+                  { icon: "📍", label: "방문 지역", value: myReservationTarget.visit_area },
+                  { icon: "💰", label: "총 요금", value: `${(myReservationTarget.total_price || 0).toLocaleString()}원` },
+                  { icon: "🐾", label: "반려동물", value: myReservationTarget.pet_name },
+                  { icon: "👤", label: "보호자명", value: myReservationTarget.client_name },
+                ].map(row => (
+                  <div key={row.label} style={{ display: "flex", gap: "12px", padding: "12px 16px", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", alignItems: "flex-start" }}>
+                    <span style={{ fontSize: "1rem", flexShrink: 0 }}>{row.icon}</span>
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontWeight: "700", width: "70px", flexShrink: 0 }}>{row.label}</span>
+                    <span style={{ fontSize: "0.88rem", color: "var(--text-main)", fontWeight: "600", flex: 1 }}>{row.value || "—"}</span>
+                  </div>
+                ))}
+
+                {/* 선택 옵션 */}
+                <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)" }}>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                    <span style={{ fontSize: "1rem" }}>➕</span>
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontWeight: "700", width: "70px", flexShrink: 0 }}>추가 옵션</span>
+                    <div style={{ flex: 1 }}>
+                      {myReservationTarget.selected_options && myReservationTarget.selected_options.length > 0
+                        ? myReservationTarget.selected_options.map((opt, i) => (
+                          <span key={i} style={{ display: "inline-block", fontSize: "0.78rem", backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)", padding: "3px 8px", borderRadius: "8px", fontWeight: "700", marginRight: "6px", marginBottom: "4px" }}>
+                            {opt}
+                          </span>
+                        ))
+                        : <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>없음</span>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                {/* 예약 상태 배지 */}
+                <div style={{ textAlign: "center", padding: "10px", borderRadius: "var(--border-radius-sm)", backgroundColor: myReservationTarget.status === "started" ? "var(--warning-coral-light)" : "var(--success-mint-light)" }}>
+                  <span style={{ fontWeight: "800", fontSize: "0.9rem", color: myReservationTarget.status === "started" ? "var(--warning-coral)" : "var(--success-mint)" }}>
+                    {myReservationTarget.status === "started" ? "🟢 현재 돌봄이 진행 중입니다." : "✅ 예약이 확정된 상태입니다."}
+                  </span>
+                </div>
+
+                {/* 수정 버튼 (돌봄 중이 아닐 때만) */}
+                <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                  {myReservationTarget.status !== "started" && (
+                    <button
+                      onClick={() => setIsEditingReservation(true)}
+                      style={{
+                        flex: 1, padding: "14px", fontSize: "0.95rem", fontWeight: "800",
+                        backgroundColor: "var(--primary-orange)", color: "white",
+                        border: "none", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
+                        transition: "var(--transition-fast)",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)"}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "var(--primary-orange)"}
+                    >
+                      ✏️ 예약 내용 수정
+                    </button>
+                  )}
+                  <button
+                    onClick={closeMyReservationModal}
+                    style={{
+                      flex: 1, padding: "14px", fontSize: "0.95rem", fontWeight: "800",
+                      backgroundColor: "var(--bg-secondary)", color: "var(--text-main)",
+                      border: "1.5px solid var(--border-light)", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
+                    }}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* 수정 모드 */
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ padding: "10px 14px", backgroundColor: "var(--warning-coral-light)", borderRadius: "var(--border-radius-sm)", border: "1px solid var(--warning-coral)" }}>
+                  <span style={{ fontSize: "0.8rem", color: "var(--warning-coral)", fontWeight: "700" }}>
+                    ⚠️ 수정 후 [수정 완료]를 눌러야 저장됩니다. 돌봄 날짜 변경은 펫시터와 직접 협의해 주세요.
+                  </span>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">📅 방문 일시 / 희망 시간</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editResVisitTime}
+                    onChange={e => setEditResVisitTime(e.target.value)}
+                    placeholder="예: 6월 15일 오후 2시~2시 30분"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">📍 방문 지역</label>
+                  <select
+                    className="form-input"
+                    value={editResVisitArea.includes("기타") || !["고현동","장평동","상문동","수월동","중곡동","옥포동","아주동","사곡리"].includes(editResVisitArea) ? "기타" : editResVisitArea}
+                    onChange={e => setEditResVisitArea(e.target.value === "기타" ? "기타 지역" : e.target.value)}
+                  >
+                    {["고현동","장평동","상문동","수월동","중곡동","옥포동","아주동","사곡리"].map(a => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                    <option value="기타">기타 지역 (+5,000원)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">➕ 추가 옵션 수정</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", backgroundColor: "var(--bg-secondary)", padding: "12px", borderRadius: "var(--border-radius-sm)" }}>
+                    {[
+                      "공휴일/명절 할증 (+5,000원)",
+                      "투약 1회 (+5,000원)",
+                      "급여도움(강제급여) (+10,000원)",
+                      "병원 방문 1회 (+20,000원)",
+                      "강아지 1마리 추가 (+8,000원)",
+                      "1일 2회 방문 (+13,000원)",
+                    ].map(opt => (
+                      <label key={opt} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
+                        <input
+                          type="checkbox"
+                          checked={editResOptions.includes(opt)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setEditResOptions(prev => [...prev, opt]);
+                            } else {
+                              setEditResOptions(prev => prev.filter(o => o !== opt));
+                            }
+                          }}
+                          style={{ accentColor: "var(--primary-orange)" }}
+                        />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                  <button
+                    onClick={handleSaveReservationEdit}
+                    disabled={editResIsSaving}
+                    style={{
+                      flex: 1, padding: "14px", fontSize: "0.95rem", fontWeight: "800",
+                      backgroundColor: editResIsSaving ? "var(--text-muted)" : "var(--success-mint)",
+                      color: "white", border: "none", borderRadius: "var(--border-radius-sm)",
+                      cursor: editResIsSaving ? "not-allowed" : "pointer",
+                      transition: "var(--transition-fast)",
+                    }}
+                  >
+                    {editResIsSaving ? "저장 중..." : "✅ 수정 완료"}
+                  </button>
+                  <button
+                    onClick={() => setIsEditingReservation(false)}
+                    style={{
+                      flex: 1, padding: "14px", fontSize: "0.95rem", fontWeight: "800",
+                      backgroundColor: "var(--bg-secondary)", color: "var(--text-main)",
+                      border: "1.5px solid var(--border-light)", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
+                    }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3293,23 +3567,45 @@ export default function UnifiedPortal() {
                             <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", marginTop: "2px" }}>
                               {sitterReservations
                                 .filter(res => res.visit_date_string === dayObj.date.toDateString())
-                                .map((res, i) => (
-                                  <span key={i} style={{
-                                    fontSize: "0.6rem",
-                                    backgroundColor: isSelected ? "rgba(255, 255, 255, 0.25)" : "var(--primary-orange-light)",
-                                    color: isSelected ? "white" : "var(--primary-orange)",
-                                    padding: "1px 4px",
-                                    borderRadius: "4px",
-                                    fontWeight: "800",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    maxWidth: "90%",
-                                    display: "block"
-                                  }}>
-                                    🐾 {res.pet_name}
-                                  </span>
-                                ))}
+                                .map((res, i) => {
+                                  const isMyReservation = isLoggedIn && activeUser && (
+                                    res.client_name === activeUser.full_name ||
+                                    res.phone === activeUser.phone
+                                  );
+                                  return (
+                                    <span
+                                      key={i}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isMyReservation) {
+                                          openMyReservationModal(res);
+                                        }
+                                      }}
+                                      title={isMyReservation ? "클릭하여 내 예약 상세보기/수정" : res.pet_name}
+                                      style={{
+                                        fontSize: "0.6rem",
+                                        backgroundColor: isMyReservation
+                                          ? "var(--success-mint-light)"
+                                          : (isSelected ? "rgba(255, 255, 255, 0.25)" : "var(--primary-orange-light)"),
+                                        color: isMyReservation
+                                          ? "var(--success-mint)"
+                                          : (isSelected ? "white" : "var(--primary-orange)"),
+                                        border: isMyReservation ? "1px solid var(--success-mint)" : "none",
+                                        padding: "1px 4px",
+                                        borderRadius: "4px",
+                                        fontWeight: "800",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        maxWidth: "90%",
+                                        display: "block",
+                                        cursor: isMyReservation ? "pointer" : "default",
+                                      }}
+                                    >
+                                      {isMyReservation ? "✅" : "🐾"} {res.pet_name}
+                                    </span>
+                                  );
+                                })}
                             </div>
                           )}
                         </button>
@@ -3317,6 +3613,75 @@ export default function UnifiedPortal() {
                     })}
                   </div>
                 </div>
+
+                {/* ── 내 예약 현황 카드 (로그인한 보호자 전용) ── */}
+                {isLoggedIn && activeUser && (() => {
+                  const myReservations = sitterReservations.filter(res =>
+                    res.client_name === activeUser.full_name ||
+                    res.phone === activeUser.phone
+                  );
+                  if (myReservations.length === 0) return null;
+                  return (
+                    <div className="premium-card animate-fade-in" style={{
+                      border: "2px solid var(--success-mint)",
+                      backgroundColor: "var(--success-mint-light)",
+                    }}>
+                      <h4 style={{ fontSize: "1rem", fontWeight: "800", color: "var(--success-mint)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                        📋 내 예약 현황
+                        <span style={{ fontSize: "0.75rem", backgroundColor: "var(--success-mint)", color: "white", padding: "2px 8px", borderRadius: "12px" }}>
+                          {myReservations.length}건
+                        </span>
+                      </h4>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {myReservations.map((res) => (
+                          <div
+                            key={res.id}
+                            onClick={() => openMyReservationModal(res)}
+                            style={{
+                              backgroundColor: "white",
+                              border: "1.5px solid var(--success-mint)",
+                              borderRadius: "var(--border-radius-sm)",
+                              padding: "14px 16px",
+                              cursor: "pointer",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: "12px",
+                              transition: "var(--transition-fast)",
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(38,198,145,0.18)"}
+                            onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: "800", fontSize: "0.9rem", color: "var(--text-main)", marginBottom: "4px" }}>
+                                🐾 {res.pet_name}
+                              </div>
+                              <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                                📍 {res.visit_area} &nbsp;|&nbsp; ⏰ {res.visit_time}
+                              </div>
+                              {res.selected_options && res.selected_options.length > 0 && (
+                                <div style={{ fontSize: "0.72rem", color: "var(--success-mint)", marginTop: "4px", fontWeight: "700" }}>
+                                  ＋ {res.selected_options.join(", ")}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                              <div style={{ fontSize: "1.1rem", fontWeight: "900", color: "var(--primary-orange)" }}>
+                                {(res.total_price || 0).toLocaleString()}원
+                              </div>
+                              <div style={{ fontSize: "0.7rem", backgroundColor: res.status === "started" ? "var(--warning-coral-light)" : "var(--success-mint-light)", color: res.status === "started" ? "var(--warning-coral)" : "var(--success-mint)", padding: "2px 8px", borderRadius: "10px", fontWeight: "700", marginTop: "4px" }}>
+                                {res.status === "started" ? "돌봄 중 🟢" : "예약 확정 ✅"}
+                              </div>
+                              <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                                클릭하여 상세보기/수정
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 시간 선택 */}
                 {bookingType === "single" && selectedDate && (
