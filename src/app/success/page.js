@@ -2,6 +2,9 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+
+const RESERVATIONS_TABLE = "reservations";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -10,6 +13,7 @@ function SuccessContent() {
   const paymentKey = searchParams.get("paymentKey");
   const orderId = searchParams.get("orderId");
   const amount = searchParams.get("amount");
+  const paymentMethodParam = searchParams.get("paymentMethod") || (paymentKey && paymentKey.startsWith("manual_") ? paymentKey.replace("manual_", "") : "card");
 
   const [bookingData, setBookingData] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
@@ -46,6 +50,37 @@ function SuccessContent() {
           if (!dupCust) {
             const updatedCust = [...currentCust, parsed.customerRecord];
             localStorage.setItem("yoongyopoomae_local_customers", JSON.stringify(updatedCust));
+          }
+
+          // Supabase 저장 (연동되어 있고 카드 결제인 경우에만 성공 페이지에서 처리)
+          if (isSupabaseConfigured && (!paymentMethodParam || paymentMethodParam === "card")) {
+            (async () => {
+              try {
+                // Ensure status is confirmed and payment method is 카드
+                const reservationsToSave = parsed.reservations.map(res => ({
+                  ...res,
+                  status: "confirmed",
+                  payment_method: "카드"
+                }));
+
+                const { error } = await supabase
+                  .from(RESERVATIONS_TABLE)
+                  .insert(reservationsToSave);
+
+                if (error) {
+                  console.warn("First insert attempt failed, retrying without payment_method column...", error);
+                  const fallbackReservations = reservationsToSave.map(({ payment_method, ...rest }) => rest);
+                  const { error: retryError } = await supabase
+                    .from(RESERVATIONS_TABLE)
+                    .insert(fallbackReservations);
+
+                  if (retryError) throw retryError;
+                }
+                console.log("Card reservation successfully saved to Supabase on success redirect.");
+              } catch (dbErr) {
+                console.error("Failed to insert card reservation into Supabase on success redirect:", dbErr);
+              }
+            })();
           }
 
           setIsSaved(true);
@@ -99,37 +134,118 @@ function SuccessContent() {
 
         <h2 style={{ fontSize: "1.8rem", fontWeight: "800", marginBottom: "8px" }}>🎉 결제 및 예약 완료!</h2>
         <p style={{ fontSize: "0.95rem", color: "var(--text-muted, hsl(215, 20%, 45%))", marginBottom: "32px" }}>
-          토스페이먼츠 안전 결제가 완료되었으며 예약 정보가 공식 등록되었습니다.
+          {paymentMethodParam === "card" 
+            ? "토스페이먼츠 안전 결제가 완료되었으며 예약 정보가 공식 등록되었습니다."
+            : "결제 신청이 완료되었으며, 입금 확인 후 예약이 최종 확정됩니다."}
         </p>
 
-        {/* Toss Payment Details */}
-        <div style={{
-          backgroundColor: "var(--bg-primary, hsl(38, 45%, 96%))",
-          padding: "20px",
-          borderRadius: "var(--border-radius-md, 14px)",
-          border: "1px solid var(--border-light, hsl(38, 20%, 88%))",
-          textAlign: "left",
-          marginBottom: "24px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px"
-        }}>
-          <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--primary-orange, hsl(28, 95%, 58%))", borderBottom: "1px solid var(--border-light, hsl(38, 20%, 88%))", paddingBottom: "6px", display: "block" }}>
-            💳 토스페이먼츠 결제 승인 정보
-          </span>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>결제 금액</span>
-            <strong style={{ color: "var(--primary-orange)" }}>{amount ? parseInt(amount).toLocaleString() : "0"}원</strong>
+        {/* Toss Payment Details / Bank Transfer Details */}
+        {paymentMethodParam === "card" ? (
+          <div style={{
+            backgroundColor: "var(--bg-primary, hsl(38, 45%, 96%))",
+            padding: "20px",
+            borderRadius: "var(--border-radius-md, 14px)",
+            border: "1px solid var(--border-light, hsl(38, 20%, 88%))",
+            textAlign: "left",
+            marginBottom: "24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px"
+          }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--primary-orange, hsl(28, 95%, 58%))", borderBottom: "1px solid var(--border-light, hsl(38, 20%, 88%))", paddingBottom: "6px", display: "block" }}>
+              💳 토스페이먼츠 결제 승인 정보
+            </span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>결제 금액</span>
+              <strong style={{ color: "var(--primary-orange)" }}>{amount ? parseInt(amount).toLocaleString() : "0"}원</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>주문 ID (OrderId)</span>
+              <span style={{ fontWeight: "600", fontSize: "0.85rem" }}>{orderId}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>결제 키 (PaymentKey)</span>
+              <span style={{ fontWeight: "500", fontSize: "0.75rem", color: "var(--text-muted)", wordBreak: "break-all", maxWidth: "60%" }}>{paymentKey}</span>
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>주문 ID (OrderId)</span>
-            <span style={{ fontWeight: "600", fontSize: "0.85rem" }}>{orderId}</span>
+        ) : paymentMethodParam === "bank" ? (
+          <div style={{
+            backgroundColor: "var(--bg-primary, hsl(38, 45%, 96%))",
+            padding: "20px",
+            borderRadius: "var(--border-radius-md, 14px)",
+            border: "1px solid var(--border-light, hsl(38, 20%, 88%))",
+            textAlign: "left",
+            marginBottom: "24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px"
+          }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--primary-orange, hsl(28, 95%, 58%))", borderBottom: "1px solid var(--border-light, hsl(38, 20%, 88%))", paddingBottom: "6px", display: "block" }}>
+              🏦 무통장 입금(계좌이체) 입금 안내
+            </span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>입금 계좌</span>
+              <strong style={{ color: "var(--text-main)" }}>카카오뱅크 3333-05-0634796 전윤교</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>송금할 금액</span>
+              <strong style={{ color: "var(--primary-orange)" }}>{amount ? parseInt(amount).toLocaleString() : "0"}원</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>주문 번호</span>
+              <span style={{ fontWeight: "600", fontSize: "0.85rem" }}>{orderId}</span>
+            </div>
+            <div style={{
+              backgroundColor: "var(--primary-orange-light, hsl(28, 100%, 94%))",
+              color: "var(--primary-orange, hsl(28, 95%, 58%))",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              fontSize: "0.8rem",
+              fontWeight: "750",
+              textAlign: "center",
+              marginTop: "4px"
+            }}>
+              💡 입금 확인 후 1시간 이내에 예약이 최종 확정됩니다.
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>결제 키 (PaymentKey)</span>
-            <span style={{ fontWeight: "500", fontSize: "0.75rem", color: "var(--text-muted)", wordBreak: "break-all", maxWidth: "60%" }}>{paymentKey}</span>
+        ) : (
+          <div style={{
+            backgroundColor: "var(--bg-primary, hsl(38, 45%, 96%))",
+            padding: "20px",
+            borderRadius: "var(--border-radius-md, 14px)",
+            border: "1px solid var(--border-light, hsl(38, 20%, 88%))",
+            textAlign: "left",
+            marginBottom: "24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px"
+          }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--success-mint, hsl(150, 45%, 40%))", borderBottom: "1px solid var(--border-light, hsl(38, 20%, 88%))", paddingBottom: "6px", display: "block" }}>
+              📱 거제사랑상품권 제로페이 결제 안내
+            </span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>예약 요금</span>
+              <strong style={{ color: "var(--primary-orange)" }}>{amount ? parseInt(amount).toLocaleString() : "0"}원</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>주문 번호</span>
+              <span style={{ fontWeight: "600", fontSize: "0.85rem" }}>{orderId}</span>
+            </div>
+            <div style={{
+              backgroundColor: "var(--success-mint-light, hsl(150, 50%, 93%))",
+              color: "var(--success-mint, hsl(150, 45%, 40%))",
+              padding: "12px 14px",
+              borderRadius: "8px",
+              fontSize: "0.82rem",
+              fontWeight: "600",
+              textAlign: "left",
+              marginTop: "4px",
+              lineHeight: "1.5"
+            }}>
+              👉 모바일 거제사랑상품권(거제시 제로페이) 결제를 선택하셨습니다. 우선 예약 신청이 완료되었으며, 동선 및 일정 조율을 위한 개별 연락 시 상품권 결제 방법을 별도로 친절하게 안내해 드리겠습니다. ✨
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Booking Summary Details */}
         {bookingData && bookingData.summary && (

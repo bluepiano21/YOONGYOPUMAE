@@ -261,11 +261,11 @@ export default function UnifiedPortal() {
   const [careMemo, setCareMemo] = useState("");
   const [visitArea, setVisitArea] = useState("고현");
   const [customArea, setCustomArea] = useState("");
-  const [forceNetworkError, setForceNetworkError] = useState(false);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
   const [showBookingSuccessModal, setShowBookingSuccessModal] = useState(false);
   const [bookingSummary, setBookingSummary] = useState(null);
   const [tempBookingData, setTempBookingData] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("card"); // 'card', 'bank', 'zeropay'
   const [bookingStep, setBookingStep] = useState(1); // 1 = 기본정보, 2 = 건강상태, 3 = 돌봄상세/예약
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -754,6 +754,7 @@ export default function UnifiedPortal() {
       if (session) {
         setIsLoggedIn(true);
         fetchUserProfile(session.user.id);
+        fetchSupabaseReservations();
       }
     });
 
@@ -761,16 +762,19 @@ export default function UnifiedPortal() {
       if (session) {
         setIsLoggedIn(true);
         fetchUserProfile(session.user.id);
+        fetchSupabaseReservations();
       } else {
         setIsLoggedIn(false);
         setActiveUser(null);
         fetchSupabasePosts();
         fetchSupabaseJournals();
+        fetchSupabaseReservations();
       }
     });
 
     fetchSupabasePosts();
     fetchSupabaseJournals();
+    fetchSupabaseReservations();
 
     return () => {
       subscription.unsubscribe();
@@ -926,6 +930,59 @@ export default function UnifiedPortal() {
     }
   };
 
+  const fetchSupabaseReservations = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data: fetchedRes, error } = await supabase
+        .from(RESERVATIONS_TABLE)
+        .select(`*`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      if (fetchedRes) {
+        setSitterReservations(prev => {
+          const merged = [...prev];
+          fetchedRes.forEach(dbRes => {
+            const idx = merged.findIndex(r => Number(r.id) === Number(dbRes.id));
+            if (idx > -1) {
+              merged[idx] = { ...merged[idx], ...dbRes };
+            } else {
+              merged.push(dbRes);
+            }
+          });
+          return merged;
+        });
+      }
+    } catch (e) {
+      console.error("Supabase 예약 목록 가져오기 실패:", e);
+    }
+  };
+
+  const handleConfirmPaymentReceived = async (resId) => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from(RESERVATIONS_TABLE)
+          .update({ status: "confirmed" })
+          .eq("id", resId);
+        
+        if (error) throw error;
+        showToast("✅ Supabase 예약이 확정('confirmed') 상태로 전환되었습니다.");
+      } catch (err) {
+        console.error("DB update failed:", err);
+        showToast(`❌ DB 예약 확정 실패: ${err.message}`);
+      }
+    }
+
+    setSitterReservations(prev =>
+      prev.map(r => Number(r.id) === Number(resId) ? { ...r, status: "confirmed" } : r)
+    );
+    showToast("🏦 입금이 확인되어 예약이 확정되었습니다!");
+  };
+
   const fetchUserProfile = async (userId) => {
     try {
       const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single();
@@ -1027,8 +1084,8 @@ export default function UnifiedPortal() {
         showToast("방문 원하시는 날짜를 달력에서 클릭해 선택해 주세요. 📅");
         return;
       }
-      if (!selectedTimeSlot) {
-        showToast("방문 원하시는 시간대를 선택해 주세요. 🕒");
+      if (!bookingTimeText.trim()) {
+        showToast("방문 원하시는 시간대를 적어주세요. 🕒");
         return;
       }
       if (!petName.trim()) {
@@ -1103,8 +1160,8 @@ export default function UnifiedPortal() {
 
     // Validation based on reservation type
     if (bookingType === "single") {
-      if (!selectedDate || !selectedTimeSlot || !petName || !petAge) {
-        showToast("필수 예약 양식을 모두 완성해 주세요. (날짜 선택, 시간대 선택, 대표 동물 이름, 나이 기입 필수)");
+      if (!selectedDate || !bookingTimeText.trim() || !petName || !petAge) {
+        showToast("필수 예약 양식을 모두 완성해 주세요. (날짜 선택, 방문 시간 기재, 대표 동물 이름, 나이 기입 필수)");
         return;
       }
     } else {
@@ -1162,12 +1219,6 @@ export default function UnifiedPortal() {
     setIsBookingLoading(true);
 
     setTimeout(() => {
-      if (forceNetworkError) {
-        setIsBookingLoading(false);
-        showToast("⚠️ 네트워크 오류가 발생하여 예약에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-        return;
-      }
-
       setIsBookingLoading(false);
 
       // 재신청 고객의 경우 이전 예약 데이터를 참조
@@ -1222,7 +1273,7 @@ export default function UnifiedPortal() {
           ? selectedDate.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })
           : `${bookingStartDate} ~ ${bookingEndDate} (${bookingFrequency === "daily" ? "매일" : "격일"} 방문 | 총 ${bookingDates.length}일)`,
         time: bookingType === "single"
-          ? selectedTimeSlot.time
+          ? bookingTimeText
           : `${bookingTimeText} (방문 조율 가능)`,
         petName: petName,
         petAge: bookingType === "single" ? `${petAge}살` : `${petCount}마리`,
@@ -1259,7 +1310,7 @@ export default function UnifiedPortal() {
       const reservationsToAdd = bookingDates.map((dateObj, idx) => {
         const dateStr = dateObj.toDateString();
         const visitTimeDisplay = bookingType === "single"
-          ? `${dateObj.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} ${selectedTimeSlot.time}`
+          ? `${dateObj.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} ${bookingTimeText}`
           : `${dateObj.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} ${bookingTimeText} (조정 가능)`;
 
         return {
@@ -1376,13 +1427,87 @@ export default function UnifiedPortal() {
   };
 
   // Toss Payments 결제창 호출 및 예약 임시 저장 함수
-  const handleConfirmPayment = () => {
-    if (typeof window !== "undefined" && window.TossPayments) {
-      if (!tempBookingData || !bookingSummary) {
-        showToast("예약 정보가 유효하지 않습니다.");
-        return;
+  const handleConfirmPayment = async () => {
+    if (!tempBookingData || !bookingSummary) {
+      showToast("예약 정보가 유효하지 않습니다.");
+      return;
+    }
+
+    // 1. 무통장 입금 및 제로페이 처리
+    if (paymentMethod === "bank" || paymentMethod === "zeropay") {
+      const orderId = `order_${Date.now()}`;
+      const manualPaymentKey = `manual_${paymentMethod}_${Date.now()}`;
+      
+      // Update reservations array status to '입금대기'
+      const reservationsWithStatus = tempBookingData.reservations.map(res => ({
+        ...res,
+        status: "입금대기",
+        payment_method: paymentMethod === "bank" ? "무통장" : "제로페이"
+      }));
+
+      if (isSupabaseConfigured) {
+        try {
+          // First attempt to insert with payment_method column
+          const { error } = await supabase
+            .from(RESERVATIONS_TABLE)
+            .insert(reservationsWithStatus);
+
+          if (error) {
+            console.warn("First insert attempt failed, retrying without payment_method column...", error);
+            // Retry without payment_method column
+            const fallbackReservations = reservationsWithStatus.map(({ payment_method, ...rest }) => rest);
+            const { error: retryError } = await supabase
+              .from(RESERVATIONS_TABLE)
+              .insert(fallbackReservations);
+
+            if (retryError) throw retryError;
+          }
+          showToast("✅ 예약 신청 정보가 Supabase에 정상 등록되었습니다.");
+        } catch (dbErr) {
+          console.error("Supabase insert failed for manual payment:", dbErr);
+          showToast("⚠️ Supabase 저장 실패 (로컬 메모리에 임시 저장됩니다): " + dbErr.message);
+        }
       }
 
+      // Save to local reservations memory
+      const savedReservations = localStorage.getItem("yoongyopoomae_local_reservations");
+      let currentRes = [];
+      if (savedReservations) {
+        currentRes = JSON.parse(savedReservations);
+      }
+      const updatedRes = [...currentRes, ...reservationsWithStatus];
+      localStorage.setItem("yoongyopoomae_local_reservations", JSON.stringify(updatedRes));
+
+      // Save customer details
+      const savedCustomers = localStorage.getItem("yoongyopoomae_local_customers");
+      let currentCust = [];
+      if (savedCustomers) {
+        currentCust = JSON.parse(savedCustomers);
+      }
+      const dupCust = currentCust.some(c => c.id === tempBookingData.customerRecord.id);
+      if (!dupCust) {
+        const updatedCust = [...currentCust, tempBookingData.customerRecord];
+        localStorage.setItem("yoongyopoomae_local_customers", JSON.stringify(updatedCust));
+      }
+
+      // Save to pending so that /success can show it correctly
+      try {
+        localStorage.setItem("pending_booking_data", JSON.stringify({
+          reservations: reservationsWithStatus,
+          customerRecord: tempBookingData.customerRecord,
+          summary: bookingSummary
+        }));
+      } catch (e) {
+        console.error("로컬스토리지 저장 실패:", e);
+      }
+
+      // Redirect to success page with query parameters
+      window.location.href = `${window.location.origin}/success?paymentMethod=${paymentMethod}&amount=${bookingSummary.totalPrice}&orderId=${orderId}&paymentKey=${manualPaymentKey}`;
+      return;
+    }
+
+    // 2. 카드 결제 (Toss Payments) 처리
+    if (typeof window !== "undefined" && window.TossPayments) {
       // 결제 성공 후 예약을 데이터베이스/로컬에 추가하기 위해 임시 저장
       try {
         localStorage.setItem("pending_booking_data", JSON.stringify({
@@ -2917,8 +3042,162 @@ export default function UnifiedPortal() {
               </div>
             </div>
 
-            <button className="btn btn-primary" onClick={handleConfirmPayment} style={{ width: "100%", padding: "14px", fontWeight: "800", fontSize: "0.95rem" }}>
-              💳 결제 및 예약 확정
+            {/* 결제 수단 선택 섹션 */}
+            <div style={{
+              marginTop: "20px",
+              borderTop: "1.5px solid var(--border-light)",
+              paddingTop: "16px",
+              marginBottom: "20px"
+            }}>
+              <span style={{
+                display: "block",
+                fontWeight: "800",
+                fontSize: "0.9rem",
+                color: "var(--text-main)",
+                marginBottom: "12px"
+              }}>
+                💳 결제 수단 선택
+              </span>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "8px",
+                marginBottom: "16px"
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("card")}
+                  style={{
+                    padding: "12px 8px",
+                    borderRadius: "10px",
+                    border: paymentMethod === "card" ? "2.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                    backgroundColor: paymentMethod === "card" ? "var(--primary-orange-light)" : "white",
+                    color: paymentMethod === "card" ? "var(--primary-orange)" : "var(--text-muted)",
+                    fontWeight: "800",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>💳</span>
+                  <span>카드 결제</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("bank")}
+                  style={{
+                    padding: "12px 8px",
+                    borderRadius: "10px",
+                    border: paymentMethod === "bank" ? "2.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                    backgroundColor: paymentMethod === "bank" ? "var(--primary-orange-light)" : "white",
+                    color: paymentMethod === "bank" ? "var(--primary-orange)" : "var(--text-muted)",
+                    fontWeight: "800",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>🏦</span>
+                  <span>무통장 입금</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("zeropay")}
+                  style={{
+                    padding: "12px 8px",
+                    borderRadius: "10px",
+                    border: paymentMethod === "zeropay" ? "2.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                    backgroundColor: paymentMethod === "zeropay" ? "var(--primary-orange-light)" : "white",
+                    color: paymentMethod === "zeropay" ? "var(--primary-orange)" : "var(--text-muted)",
+                    fontWeight: "800",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>📱</span>
+                  <span>거제 제로페이</span>
+                </button>
+              </div>
+
+              {/* 수단별 안내 문구 */}
+              {paymentMethod === "card" && (
+                <div style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  backgroundColor: "var(--bg-primary)",
+                  border: "1px solid var(--border-light)",
+                  fontSize: "0.82rem",
+                  color: "var(--text-muted)",
+                  lineHeight: "1.4"
+                }}>
+                  ℹ️ 토스페이먼츠의 안전한 카드 결제창으로 연결됩니다.
+                </div>
+              )}
+
+              {paymentMethod === "bank" && (
+                <div style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  backgroundColor: "var(--primary-orange-light)",
+                  border: "1.5px solid var(--primary-orange)",
+                  fontSize: "0.82rem",
+                  color: "var(--text-main)",
+                  lineHeight: "1.5"
+                }}>
+                  👉 계좌번호: <strong style={{ color: "var(--primary-orange)" }}>카카오뱅크 3333-05-0634796 전윤교</strong><br />
+                  💡 입금 확인 후 1시간 이내에 예약이 최종 확정됩니다.
+                </div>
+              )}
+
+              {paymentMethod === "zeropay" && (
+                <div style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  backgroundColor: "var(--success-mint-light)",
+                  border: "1.5px solid var(--success-mint)",
+                  fontSize: "0.82rem",
+                  color: "var(--text-main)",
+                  lineHeight: "1.5"
+                }}>
+                  👉 모바일 거제사랑상품권(거제시 제로페이) 결제를 원하시는 경우, 우선 아래 <strong>[예약 신청하기]</strong> 버튼을 눌러 접수를 완료해 주세요! 동선 및 일정 조율을 위해 개별 연락드릴 때, 상품권 결제 방법을 별도로 친절하게 안내해 드리겠습니다. ✨
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleConfirmPayment}
+              style={{
+                width: "100%",
+                padding: "14px",
+                fontWeight: "800",
+                fontSize: "0.95rem",
+                backgroundColor: paymentMethod === "card" ? "var(--primary-orange)" : "var(--success-mint)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--border-radius-md, 14px)",
+                cursor: "pointer",
+                boxShadow: paymentMethod === "card" 
+                  ? "0 4px 12px rgba(255, 112, 67, 0.2)" 
+                  : "0 4px 12px rgba(46, 125, 50, 0.2)",
+                transition: "all 0.2s ease"
+              }}
+            >
+              {paymentMethod === "card" ? "💳 결제 및 예약 확정" : "📝 예약 신청하기"}
             </button>
           </div>
         </div>
@@ -4074,66 +4353,7 @@ export default function UnifiedPortal() {
                   );
                 })()}
 
-                {/* 시간 선택 */}
-                {bookingType === "single" && selectedDate && (
-                  <div className="premium-card animate-fade-in">
-                    <h4 style={{ fontSize: "1rem", fontWeight: "800", marginBottom: "12px", color: "var(--text-main)" }}>
-                      ⏰ 돌봄을 진행할 시간대를 골라주세요
-                    </h4>
-                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "16px" }}>
-                      선택하신 날짜: <strong>{selectedDate.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}</strong>
-                    </p>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {TIME_SLOTS_POOL.map(slot => {
-                        const isBooked = isSlotBooked(slot);
-                        return (
-                          <button
-                            key={slot.id}
-                            disabled={isBooked}
-                            type="button"
-                            onClick={() => setSelectedTimeSlot(slot)}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "16px 20px",
-                              border: "1.5px solid var(--border-light)",
-                              borderRadius: "var(--border-radius-sm)",
-                              cursor: isBooked ? "not-allowed" : "pointer",
-                              backgroundColor: selectedTimeSlot?.id === slot.id 
-                                ? "var(--primary-orange-light)" 
-                                : isBooked ? "var(--bg-primary)" : "var(--bg-secondary)",
-                              borderColor: selectedTimeSlot?.id === slot.id 
-                                ? "var(--primary-orange)" 
-                                : "var(--border-light)",
-                              color: isBooked ? "var(--text-muted)" : "var(--text-main)",
-                              transition: "var(--transition-fast)"
-                            }}
-                          >
-                            <span style={{ fontWeight: "700" }}>⏰ {slot.time}</span>
-                            <span style={{
-                              fontSize: "0.75rem", fontWeight: "800",
-                              backgroundColor: isBooked ? "#e0e0e0" : "var(--success-mint-light)",
-                              color: isBooked ? "var(--text-muted)" : "var(--success-mint)",
-                              padding: "4px 10px", borderRadius: "10px"
-                            }}>
-                              {isBooked ? "예약 불가 ❌" : "예약 가능 🟢"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {bookingType === "single" && !selectedDate && (
-                  <div className="premium-card animate-fade-in" style={{ textAlign: "center", padding: "30px 20px" }}>
-                    <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", margin: 0, fontWeight: "600" }}>
-                      📅 달력에서 원하시는 예약 날짜를 먼저 선택해 주세요.
-                    </p>
-                  </div>
-                )}
 
                 {bookingType === "multi" && (
                   <div className="premium-card animate-fade-in" style={{ backgroundColor: "var(--primary-orange-light)", border: "1.5px solid var(--primary-orange)" }}>
@@ -4491,15 +4711,28 @@ export default function UnifiedPortal() {
                     <label className="form-label" style={{ color: "var(--warning-coral)", fontWeight: "750" }}>
                       * 2. 방문 원하시는 시간 적어주세요 (필수)
                     </label>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "8px" }}>
                       ※ 다른 돌봄 일정이 있을 시 방문 시간이 다소 조정될 수 있습니다.
+                    </div>
+                    <div style={{
+                      backgroundColor: "var(--primary-orange-light)",
+                      border: "1.5px dashed var(--primary-orange)",
+                      borderRadius: "10px",
+                      padding: "12px 14px",
+                      color: "var(--text-main)",
+                      fontSize: "0.82rem",
+                      fontWeight: "700",
+                      lineHeight: "1.5",
+                      marginBottom: "12px"
+                    }} className="animate-fade-in">
+                      👉 원하시는 선호 시간을 적어주시면, 다른 돌봄 일정 및 동선을 고려하여 조율 후 개별적으로 연락드리겠습니다. ✨
                     </div>
                     <input
                       type="text"
                       className="form-input"
                       value={bookingTimeText}
                       onChange={(e) => setBookingTimeText(e.target.value)}
-                      placeholder={bookingType === "single" && selectedTimeSlot ? `선택된 시간: ${selectedTimeSlot.time} (직접 수정/추가 기입 가능)` : "예: 오후 2시 선호합니다, 또는 오전 11시 ~ 오후 1시 사이 (최대 100자)"}
+                      placeholder="예: 오후 2시 선호합니다, 또는 오전 11시 ~ 오후 1시 사이 (최대 100자)"
                       maxLength={100}
                       required
                       lang="ko"
@@ -5310,32 +5543,6 @@ export default function UnifiedPortal() {
                         </div>
                       </div>
 
-                      {/* Network error simulator control */}
-                      <div style={{
-                        backgroundColor: "var(--bg-primary)",
-                        padding: "12px 16px",
-                        borderRadius: "var(--border-radius-sm)",
-                        border: "1px solid var(--border-light)",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: "8px"
-                      }}>
-                        <div>
-                          <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block" }}>
-                            ⚠️ 네트워크 에러 강제 발생 시뮬레이션
-                          </span>
-                          <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                            에러 발생 시의 무한로딩 탈출 안내문을 테스트합니다.
-                          </span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={forceNetworkError}
-                          onChange={(e) => setForceNetworkError(e.target.checked)}
-                          style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--warning-coral)" }}
-                        />
-                      </div>
 
                       <button
                         type="submit"
