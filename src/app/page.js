@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Script from "next/script";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import ImageUploader from "../components/ImageUploader";
 import JournalMediaUploader from "../components/JournalMediaUploader";
@@ -158,6 +159,11 @@ const CUSTOMERS_DB = [
   }
 ];
 
+// ──────────────────────────────────────────────────────────────────
+// ⚙️  [설정] Supabase 예약 테이블명 - 실제 테이블명이 다를 경우 여기만 수정하세요.
+// ──────────────────────────────────────────────────────────────────
+const RESERVATIONS_TABLE = "reservations";
+
 // Scheduled Bookings showing a warning 1 hour prior (Sitter confirming safety checklist)
 const MOCK_RESERVATIONS = [
   {
@@ -260,7 +266,8 @@ export default function UnifiedPortal() {
   const [showBookingSuccessModal, setShowBookingSuccessModal] = useState(false);
   const [bookingSummary, setBookingSummary] = useState(null);
   const [tempBookingData, setTempBookingData] = useState(null);
-  const [bookingStep, setBookingStep] = useState(1); // 1 = 기본정보, 2 = 건강/돌봄 상세
+  const [bookingStep, setBookingStep] = useState(1); // 1 = 기본정보, 2 = 건강상태, 3 = 돌봄상세/예약
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // New multi-day and questionnaire fields
   const [bookingType, setBookingType] = useState("single"); // "single" | "multi"
@@ -370,7 +377,19 @@ export default function UnifiedPortal() {
       setParkingOption(found.parking_option || "free");
       setPhotoVideoPreference(found.photo_video_preference || "many");
       setSnsAgreement(found.sns_agreement || false); setPrivacyAgreement(true);
-      if (norm(found.phone) === norm(MOCK_PREVIOUS_BOOKING.clientPhone)) {
+      // 휴대폰 번호 매칭으로 최신 예약 정보(사료/화장실 등) 가져오기
+      const matchingRes = sitterReservations.filter(res => res.phone && norm(res.phone) === norm(found.phone));
+      let hasFilled = false;
+      if (matchingRes.length > 0) {
+        matchingRes.sort((a, b) => b.id - a.id);
+        const latest = matchingRes[0];
+        const feed = latest.feeding_info || latest.feedingInfo;
+        const litter = latest.litter_info || latest.litterInfo;
+        if (feed) { setFeedingInfo(feed); hasFilled = true; }
+        if (litter) { setLitterInfo(litter); hasFilled = true; }
+      }
+
+      if (!hasFilled && norm(found.phone) === norm(MOCK_PREVIOUS_BOOKING.clientPhone)) {
         setFeedingInfo(MOCK_PREVIOUS_BOOKING.feedingInfo); setLitterInfo(MOCK_PREVIOUS_BOOKING.litterInfo);
         const traits = MOCK_PREVIOUS_BOOKING.petPersonality.split(", ").map(t => t.trim());
         const std = ["사람 좋아함","낯가림 있음","겁이 많음","공격성 있음","만지는 거 싫어함"];
@@ -425,7 +444,7 @@ export default function UnifiedPortal() {
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase
-          .from("reservations")
+          .from(RESERVATIONS_TABLE)
           .update({
             visit_time: editResVisitTime,
             visit_area: editResVisitArea,
@@ -595,7 +614,7 @@ export default function UnifiedPortal() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // 로컬 저장 포스트 및 돌봄일지 초기화 로드
+  // 로컬 저장 포스트, 돌봄일지, 예약 및 고객 정보 초기화 로드
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedPosts = localStorage.getItem("yoongyopoomae_local_posts");
@@ -621,8 +640,111 @@ export default function UnifiedPortal() {
           console.error("로컬 돌봄일지 파싱 오류:", e);
         }
       }
+
+      const savedReservations = localStorage.getItem("yoongyopoomae_local_reservations");
+      if (savedReservations) {
+        try {
+          setSitterReservations(JSON.parse(savedReservations));
+        } catch (e) {
+          console.error("로컬 예약 파싱 오류:", e);
+        }
+      } else {
+        localStorage.setItem("yoongyopoomae_local_reservations", JSON.stringify(MOCK_RESERVATIONS));
+      }
+
+      const savedCustomers = localStorage.getItem("yoongyopoomae_local_customers");
+      if (savedCustomers) {
+        try {
+          setCustomers(JSON.parse(savedCustomers));
+        } catch (e) {
+          console.error("로컬 고객 파싱 오류:", e);
+        }
+      } else {
+        localStorage.setItem("yoongyopoomae_local_customers", JSON.stringify(CUSTOMERS_DB));
+      }
     }
   }, []);
+
+  // 예약 및 고객 정보 변경 시 localStorage 동기화
+  useEffect(() => {
+    if (typeof window !== "undefined" && sitterReservations && sitterReservations.length > 0) {
+      localStorage.setItem("yoongyopoomae_local_reservations", JSON.stringify(sitterReservations));
+    }
+  }, [sitterReservations]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && customers && customers.length > 0) {
+      localStorage.setItem("yoongyopoomae_local_customers", JSON.stringify(customers));
+    }
+  }, [customers]);
+
+  // 로그인한 회원의 최근 예약 데이터를 조회하여 사료/화장실 정보 자동완성
+  useEffect(() => {
+    const autoFillPreviousBooking = async () => {
+      if (!isLoggedIn || !activeUser || !isReturningCustomer) return;
+
+      console.log("[AutoFill] 로그인 사용자 ID 기반 최근 예약 조회 시도:", activeUser.id);
+
+      // 1. Supabase가 연동된 경우 DB 조회
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from(RESERVATIONS_TABLE)
+            .select("feeding_info, litter_info")
+            .eq("user_id", activeUser.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          // 404 = 테이블 미존재: 에러를 throw하지 않고 조용히 로컬 폴백으로 전환
+          if (error && (error.code === "PGRST116" || error.message?.includes("does not exist"))) {
+            console.warn(`[AutoFill] 테이블 '${RESERVATIONS_TABLE}'이 Supabase에 존재하지 않습니다. 로컬 데이터로 전환합니다. (파일 상단의 RESERVATIONS_TABLE 상수를 실제 테이블명으로 변경하세요.)`);
+            // throw 없이 바로 로컬 폴백으로 진행
+          } else if (error) {
+            throw error;
+          }
+
+          if (data && data.length > 0) {
+            const latest = data[0];
+            const feed = latest.feeding_info || latest.feedingInfo;
+            const litter = latest.litter_info || latest.litterInfo;
+
+            if (feed) setFeedingInfo(feed);
+            if (litter) setLitterInfo(litter);
+            showToast("✨ 이전 완료된 예약의 돌봄 방법 안내를 자동으로 불러왔습니다.");
+            console.log("[AutoFill] Supabase로부터 최근 사료/화장실 정보를 연동했습니다.");
+            return;
+          }
+        } catch (e) {
+          console.warn("[AutoFill] Supabase 조회 실패 (로컬 스토리지로 전환):", e);
+        }
+      }
+
+      // 2. Supabase 미연동 또는 데이터가 없을 때 로컬 상태/스토리지 조회
+      try {
+        const matchingReservations = sitterReservations.filter(res => 
+          res.user_id === activeUser.id || 
+          res.client_name === activeUser.full_name
+        );
+
+        if (matchingReservations.length > 0) {
+          // id(생성 타임스탬프) 기준 내림차순 정렬하여 가장 최근 예약 가져오기
+          matchingReservations.sort((a, b) => b.id - a.id);
+          const latest = matchingReservations[0];
+          const feed = latest.feeding_info || latest.feedingInfo;
+          const litter = latest.litter_info || latest.litterInfo;
+
+          if (feed) setFeedingInfo(feed);
+          if (litter) setLitterInfo(litter);
+          showToast("✨ 이전 완료된 예약의 돌봄 방법 안내를 자동으로 불러왔습니다.");
+          console.log("[AutoFill] 로컬 예약 목록으로부터 최근 사료/화장실 정보를 연동했습니다.");
+        }
+      } catch (e) {
+        console.error("[AutoFill] 로컬 예약 조회 실패:", e);
+      }
+    };
+
+    autoFillPreviousBooking();
+  }, [isLoggedIn, activeUser, isReturningCustomer, sitterReservations]);
 
   // --- Supabase Realtime synchronization ---
   useEffect(() => {
@@ -898,6 +1020,84 @@ export default function UnifiedPortal() {
     setSelectedTimeSlot(null);
   };
 
+  const handleNextStep = () => {
+    // Validation based on reservation type
+    if (bookingType === "single") {
+      if (!selectedDate) {
+        showToast("방문 원하시는 날짜를 달력에서 클릭해 선택해 주세요. 📅");
+        return;
+      }
+      if (!selectedTimeSlot) {
+        showToast("방문 원하시는 시간대를 선택해 주세요. 🕒");
+        return;
+      }
+      if (!petName.trim()) {
+        showToast("대표 반려동물 이름을 입력해 주세요. 🐾");
+        return;
+      }
+      if (!petAge.trim()) {
+        showToast("대표 반려동물 나이를 입력해 주세요. 🎂");
+        return;
+      }
+    } else {
+      if (!bookingStartDate) {
+        showToast("방문 시작일을 입력해 주세요. 📅");
+        return;
+      }
+      if (!bookingEndDate) {
+        showToast("방문 종료일을 입력해 주세요. 📅");
+        return;
+      }
+      if (!bookingDateText.trim()) {
+        showToast("방문 원하시는 날짜 기재(필수)를 작성해 주세요. ✍️");
+        return;
+      }
+      if (!bookingTimeText.trim()) {
+        showToast("방문 원하시는 시간 적어주세요(필수)를 작성해 주세요. 🕒");
+        return;
+      }
+      if (!petName.trim()) {
+        showToast("대표 반려동물 이름을 입력해 주세요. 🐾");
+        return;
+      }
+      if (!petDetailsText.trim()) {
+        showToast("아이들 세부 정보(마릿수, 이름, 나이 등 필수)를 작성해 주세요. 📋");
+        return;
+      }
+    }
+
+    setBookingStep(2);
+    // Smooth scroll to the top of the booking form start
+    const portalElement = document.getElementById("booking-form-start");
+    if (portalElement) {
+      portalElement.scrollIntoView({ behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleNextStep2 = () => {
+    // 30일 이내 병원 방문 여부, 전염성 질환 여부, 동의 항목 필수 체크 검증
+    if (!recentHospitalVisit || !infectiousDisease || !healthAgreement) {
+      showToast("필수 항목을 모두 확인해 주세요");
+      return;
+    }
+
+    if (infectiousDisease === "yes") {
+      showToast("전염성 질환이 있는 경우 예약이 불가합니다. 완치 후 다시 신청해 주세요.");
+      return;
+    }
+
+    setBookingStep(3);
+    // Smooth scroll to the top of the booking form start
+    const portalElement = document.getElementById("booking-form-start");
+    if (portalElement) {
+      portalElement.scrollIntoView({ behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   const handleBookingSubmit = (e) => {
     e.preventDefault();
 
@@ -1064,6 +1264,7 @@ export default function UnifiedPortal() {
 
         return {
           id: Date.now() + idx,
+          user_id: activeUser ? activeUser.id : null,
           customer_id: newCustId,
           client_name: activeUser ? activeUser.full_name : "보호자 회원",
           pet_name: petName,
@@ -1171,6 +1372,63 @@ export default function UnifiedPortal() {
       setShowBookingSuccessModal(false);
       setBookingSubView("calculator");
       showToast("📅 예약 신청 정보가 돌봄달력에 즉시 적용되었습니다.");
+    }
+  };
+
+  // Toss Payments 결제창 호출 및 예약 임시 저장 함수
+  const handleConfirmPayment = () => {
+    if (typeof window !== "undefined" && window.TossPayments) {
+      if (!tempBookingData || !bookingSummary) {
+        showToast("예약 정보가 유효하지 않습니다.");
+        return;
+      }
+
+      // 결제 성공 후 예약을 데이터베이스/로컬에 추가하기 위해 임시 저장
+      try {
+        localStorage.setItem("pending_booking_data", JSON.stringify({
+          reservations: tempBookingData.reservations,
+          customerRecord: tempBookingData.customerRecord,
+          summary: bookingSummary
+        }));
+      } catch (e) {
+        console.error("로컬스토리지 저장 실패:", e);
+      }
+
+      // .trim()으로 환경변수 값의 앞뒤 공백/개행 제거 → 401 인증 오류 방지
+      const envKey = (process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "").trim();
+      const clientKey = envKey || "test_ck_D5maMgNXP2ea1OD1a5A8w14tba0P"; // 공식 기본 테스트 클라이언트 키 폴백
+      
+      console.log(`[Toss Payments] 결제창 호출 키 확인: ${clientKey.slice(0, 10)}... (환경 변수 적용 여부: ${!!envKey})`);
+      
+      if (!envKey) {
+        console.warn(
+          "⚠️ [Toss Payments Warning] NEXT_PUBLIC_TOSS_CLIENT_KEY 환경 변수가 설정되지 않아 기본 문서용 공용 키로 폴백되었습니다.\n" +
+          "공용 키는 토스페이먼츠 보안 정책(도메인/오리진 제한)에 의해 localhost:3000 환경에서 401 Unauthorized 에러가 발생할 수 있습니다.\n" +
+          "이 문제를 해결하려면 토스페이먼츠 개발자센터(https://developers.tosspayments.com)에서 발급받은 본인 상점의 테스트 클라이언트 키를 .env.local에 설정하고 개발 서버를 재시작해 주세요."
+        );
+      }
+
+      // SDK 로드 재검증: afterInteractive 전략 사용 중이므로 window.TossPayments가 없다면 안내
+      if (typeof window.TossPayments !== "function") {
+        showToast("결제 모듈을 로딩 중입니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+
+      const tossPayments = window.TossPayments(clientKey);
+
+      tossPayments.requestPayment("카드", {
+        amount: bookingSummary.totalPrice,
+        orderId: `order_${Date.now()}`,
+        orderName: `윤교품애 펫케어 예약 - ${bookingSummary.petName}`,
+        customerName: activeUser ? activeUser.full_name : "보호자 회원",
+        successUrl: `${window.location.origin}/success`,
+        failUrl: `${window.location.origin}/fail`,
+      }).catch((error) => {
+        console.error("Toss payments error:", error);
+        showToast(`결제창 열기 실패: ${error.message || error}`);
+      });
+    } else {
+      showToast("결제 모듈이 아직 로드되지 않았습니다. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -2659,8 +2917,8 @@ export default function UnifiedPortal() {
               </div>
             </div>
 
-            <button className="btn btn-primary" onClick={handleConfirmReservation} style={{ width: "100%", padding: "14px", fontWeight: "800", fontSize: "0.95rem" }}>
-              예약 확정 및 신청 완료 (돌봄달력 즉시 적용) 🐾
+            <button className="btn btn-primary" onClick={handleConfirmPayment} style={{ width: "100%", padding: "14px", fontWeight: "800", fontSize: "0.95rem" }}>
+              💳 결제 및 예약 확정
             </button>
           </div>
         </div>
@@ -2765,12 +3023,13 @@ export default function UnifiedPortal() {
       <header style={{
         backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)",
         backdropFilter: "blur(10px)",
-        background: "rgba(255,255,255,0.92)"
+        background: "rgba(255,255,255,0.92)",
+        position: "relative"
       }}>
-        <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "80px" }}>
+        <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "80px", position: "relative" }}>
           
           {/* Logo brand linked from index.html */}
-          <div onClick={() => setActivePortal("home")} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
+          <div onClick={() => { setActivePortal("home"); setMobileMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", zIndex: 1001 }}>
             <div
               style={{
                 width: "42px",
@@ -2793,79 +3052,211 @@ export default function UnifiedPortal() {
             </div>
           </div>
 
-          {/* Top Tabs - Merged client HTML site & NextJS Portal */}
-          <div style={{
-            display: "flex", 
-            backgroundColor: "var(--success-mint-light)",
-            padding: "5px",
-            borderRadius: "var(--border-radius-full)", 
-            border: "1.5px solid hsl(150, 30%, 75%)",
-            boxShadow: "0 8px 24px rgba(22, 31, 56, 0.08)"
-          }}>
-            <button
-              onClick={() => setActivePortal("home")}
-              style={{
-                border: "none", background: activePortal === "home" ? "var(--primary-orange)" : "transparent",
-                color: activePortal === "home" ? "white" : "hsl(150, 50%, 25%)",
-                padding: "8px 18px", borderRadius: "var(--border-radius-full)",
-                fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
-              }}
-            >
-              🏠 윤교품애 홈
-            </button>
-            <button
-              onClick={() => {
-                setActivePortal("booking");
-                setBookingSubView("calculator");
-              }}
-              style={{
-                border: "none", background: activePortal === "booking" ? "var(--primary-orange)" : "transparent",
-                color: activePortal === "booking" ? "white" : "hsl(150, 50%, 25%)",
-                padding: "8px 18px", borderRadius: "var(--border-radius-full)",
-                fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
-              }}
-            >
-              📅 실시간 캘린더 예약
-            </button>
-            <button
-              onClick={() => {
-                if (!isLoggedIn) {
-                  showToast("🔒 보안 수칙: 펫시터 관리 권한 확인을 위해 로그인이 필요합니다.");
-                  setShowLoginModal(true);
-                } else if (activeUser && activeUser.role !== "admin" && activeUser.role !== "sitter") {
-                  showToast("🔒 보안 경고: 이 탭은 펫시터 및 관리자 전용 공간입니다. 펫시터 또는 관리자로 재인증해주세요.");
-                } else {
-                  setActivePortal("sitter");
-                }
-              }}
-              style={{
-                border: "none", background: activePortal === "sitter" ? "var(--primary-orange)" : "transparent",
-                color: activePortal === "sitter" ? "white" : "hsl(150, 50%, 25%)",
-                padding: "8px 18px", borderRadius: "var(--border-radius-full)",
-                fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
-              }}
-            >
-              🔒 펫시터 대시보드
-            </button>
+          {/* Mobile Hamburger toggle button */}
+          <button
+            className="mobile-nav-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="메뉴 토글"
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "1.8rem",
+              color: "var(--text-main)",
+              cursor: "pointer",
+              padding: "8px",
+              zIndex: 1001,
+              display: "none", /* Shown on mobile via CSS media query */
+              transition: "var(--transition-fast)"
+            }}
+          >
+            {mobileMenuOpen ? "✕" : "☰"}
+          </button>
+
+          {/* Desktop Navigation Tabs & Profile */}
+          <div className="desktop-nav" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            {/* Top Tabs - Merged client HTML site & NextJS Portal */}
+            <div style={{
+              display: "flex", 
+              backgroundColor: "var(--success-mint-light)",
+              padding: "5px",
+              borderRadius: "var(--border-radius-full)", 
+              border: "1.5px solid hsl(150, 30%, 75%)",
+              boxShadow: "0 8px 24px rgba(22, 31, 56, 0.08)"
+            }}>
+              <button
+                onClick={() => setActivePortal("home")}
+                style={{
+                  border: "none", background: activePortal === "home" ? "var(--primary-orange)" : "transparent",
+                  color: activePortal === "home" ? "white" : "hsl(150, 50%, 25%)",
+                  padding: "8px 18px", borderRadius: "var(--border-radius-full)",
+                  fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
+                }}
+              >
+                🏠 윤교품애 홈
+              </button>
+              <button
+                onClick={() => {
+                  setActivePortal("booking");
+                  setBookingSubView("calculator");
+                }}
+                style={{
+                  border: "none", background: activePortal === "booking" ? "var(--primary-orange)" : "transparent",
+                  color: activePortal === "booking" ? "white" : "hsl(150, 50%, 25%)",
+                  padding: "8px 18px", borderRadius: "var(--border-radius-full)",
+                  fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
+                }}
+              >
+                📅 실시간 캘린더 예약
+              </button>
+              <button
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    showToast("🔒 보안 수칙: 펫시터 관리 권한 확인을 위해 로그인이 필요합니다.");
+                    setShowLoginModal(true);
+                  } else if (activeUser && activeUser.role !== "admin" && activeUser.role !== "sitter") {
+                    showToast("🔒 보안 경고: 이 탭은 펫시터 및 관리자 전용 공간입니다. 펫시터 또는 관리자로 재인증해주세요.");
+                  } else {
+                    setActivePortal("sitter");
+                  }
+                }}
+                style={{
+                  border: "none", background: activePortal === "sitter" ? "var(--primary-orange)" : "transparent",
+                  color: activePortal === "sitter" ? "white" : "hsl(150, 50%, 25%)",
+                  padding: "8px 18px", borderRadius: "var(--border-radius-full)",
+                  fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
+                }}
+              >
+                🔒 펫시터 대시보드
+              </button>
+            </div>
+
+            {/* User Profile UI from index.html */}
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              {isLoggedIn && activeUser ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)" }}>
+                    👤 {activeUser.full_name}
+                  </span>
+                  <button className="btn btn-secondary" onClick={handleLogout} style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <button className="btn btn-primary" onClick={() => setShowLoginModal(true)} style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
+                  인증 로그인 🔑
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* User Profile UI from index.html */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {isLoggedIn && activeUser ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)" }}>
-                  👤 {activeUser.full_name}
-                </span>
-                <button className="btn btn-secondary" onClick={handleLogout} style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
-                  로그아웃
+          {/* Mobile Menu Dropdown */}
+          {mobileMenuOpen && (
+            <div
+              className="mobile-nav-menu"
+              style={{
+                position: "absolute",
+                top: "80px",
+                left: 0,
+                right: 0,
+                backgroundColor: "white",
+                borderBottom: "1.5px solid var(--border-light)",
+                boxShadow: "var(--shadow-md)",
+                padding: "20px 24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+                zIndex: 1000,
+                animation: "fadeIn 0.2s ease-out"
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <button
+                  onClick={() => { setActivePortal("home"); setMobileMenuOpen(false); }}
+                  style={{
+                    border: "none",
+                    background: activePortal === "home" ? "var(--primary-orange)" : "var(--bg-primary)",
+                    color: activePortal === "home" ? "white" : "var(--text-main)",
+                    padding: "12px 20px",
+                    borderRadius: "var(--border-radius-md)",
+                    fontSize: "1rem",
+                    fontWeight: "750",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "var(--transition-fast)"
+                  }}
+                >
+                  🏠 윤교품애 홈
+                </button>
+                <button
+                  onClick={() => {
+                    setActivePortal("booking");
+                    setBookingSubView("calculator");
+                    setMobileMenuOpen(false);
+                  }}
+                  style={{
+                    border: "none",
+                    background: activePortal === "booking" ? "var(--primary-orange)" : "var(--bg-primary)",
+                    color: activePortal === "booking" ? "white" : "var(--text-main)",
+                    padding: "12px 20px",
+                    borderRadius: "var(--border-radius-md)",
+                    fontSize: "1rem",
+                    fontWeight: "750",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "var(--transition-fast)"
+                  }}
+                >
+                  📅 실시간 캘린더 예약
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (!isLoggedIn) {
+                      showToast("🔒 보안 수칙: 펫시터 관리 권한 확인을 위해 로그인이 필요합니다.");
+                      setShowLoginModal(true);
+                    } else if (activeUser && activeUser.role !== "admin" && activeUser.role !== "sitter") {
+                      showToast("🔒 보안 경고: 이 탭은 펫시터 및 관리자 전용 공간입니다. 펫시터 또는 관리자로 재인증해주세요.");
+                    } else {
+                      setActivePortal("sitter");
+                    }
+                  }}
+                  style={{
+                    border: "none",
+                    background: activePortal === "sitter" ? "var(--primary-orange)" : "var(--bg-primary)",
+                    color: activePortal === "sitter" ? "white" : "var(--text-main)",
+                    padding: "12px 20px",
+                    borderRadius: "var(--border-radius-md)",
+                    fontSize: "1rem",
+                    fontWeight: "750",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "var(--transition-fast)"
+                  }}
+                >
+                  🔒 펫시터 대시보드
                 </button>
               </div>
-            ) : (
-              <button className="btn btn-primary" onClick={() => setShowLoginModal(true)} style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
-                인증 로그인 🔑
-              </button>
-            )}
-          </div>
+
+              <div style={{ height: "1px", backgroundColor: "var(--border-light)", margin: "4px 0" }}></div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                {isLoggedIn && activeUser ? (
+                  <>
+                    <span style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)" }}>
+                      👤 {activeUser.full_name}
+                    </span>
+                    <button className="btn btn-secondary" onClick={() => { handleLogout(); setMobileMenuOpen(false); }} style={{ padding: "10px 18px", fontSize: "0.9rem" }}>
+                      로그아웃
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn btn-primary" onClick={() => { setShowLoginModal(true); setMobileMenuOpen(false); }} style={{ width: "100%", padding: "12px", fontSize: "0.95rem" }}>
+                    인증 로그인 🔑
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </header>
       </div> {/* /Fixed header wrapper */}
@@ -3759,7 +4150,7 @@ export default function UnifiedPortal() {
               </div>
 
               {/* Right Column: Detail Forms */}
-              <div className="premium-card" style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div id="booking-form-start" className="premium-card" style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "20px" }}>
                 <h3 style={{ fontSize: "1.2rem", fontWeight: "800", borderBottom: "1.5px solid var(--border-light)", paddingBottom: "10px", margin: 0 }}>
                   📋 돌봄 예약 세부 사항 입력
                 </h3>
@@ -3773,17 +4164,19 @@ export default function UnifiedPortal() {
                     gap: "0",
                     marginBottom: "8px"
                   }}>
+                    {/* Tab 1 */}
                     <div style={{
                       flex: 1,
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      padding: "10px 16px",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "10px 8px",
                       borderRadius: "10px 0 0 10px",
                       backgroundColor: bookingStep === 1 ? "var(--primary-orange)" : "var(--bg-secondary)",
                       color: bookingStep === 1 ? "white" : "var(--text-muted)",
                       fontWeight: "800",
-                      fontSize: "0.85rem",
+                      fontSize: "0.8rem",
                       cursor: "pointer",
                       transition: "all 0.2s ease",
                       borderTop: bookingStep === 1 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
@@ -3794,39 +4187,88 @@ export default function UnifiedPortal() {
                       onClick={() => setBookingStep(1)}
                     >
                       <span style={{
-                        width: "24px", height: "24px", borderRadius: "50%",
+                        width: "20px", height: "20px", borderRadius: "50%",
                         backgroundColor: bookingStep === 1 ? "white" : "var(--border-light)",
                         color: bookingStep === 1 ? "var(--primary-orange)" : "var(--text-muted)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "0.75rem", fontWeight: "900", flexShrink: 0
+                        fontSize: "0.7rem", fontWeight: "900", flexShrink: 0
                       }}>1</span>
-                      예약 기본 정보
+                      기본 정보
                     </div>
+
+                    {/* Tab 2 */}
                     <div style={{
                       flex: 1,
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      padding: "10px 16px",
-                      borderRadius: "0 10px 10px 0",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "10px 8px",
                       backgroundColor: bookingStep === 2 ? "var(--primary-orange)" : "var(--bg-secondary)",
                       color: bookingStep === 2 ? "white" : "var(--text-muted)",
                       fontWeight: "800",
-                      fontSize: "0.85rem",
+                      fontSize: "0.8rem",
                       cursor: "pointer",
                       transition: "all 0.2s ease",
-                      border: bookingStep === 2 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)"
+                      borderTop: bookingStep === 2 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderBottom: bookingStep === 2 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderLeft: "1px solid var(--border-light)",
+                      borderRight: "1px solid var(--border-light)"
                     }}
-                      onClick={() => setBookingStep(2)}
+                      onClick={() => {
+                        if (bookingStep === 1) {
+                          handleNextStep();
+                        } else {
+                          setBookingStep(2);
+                        }
+                      }}
                     >
                       <span style={{
-                        width: "24px", height: "24px", borderRadius: "50%",
+                        width: "20px", height: "20px", borderRadius: "50%",
                         backgroundColor: bookingStep === 2 ? "white" : "var(--border-light)",
                         color: bookingStep === 2 ? "var(--primary-orange)" : "var(--text-muted)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "0.75rem", fontWeight: "900", flexShrink: 0
+                        fontSize: "0.7rem", fontWeight: "900", flexShrink: 0
                       }}>2</span>
-                      건강 & 돌봄 상세
+                      건강 상태
+                    </div>
+
+                    {/* Tab 3 */}
+                    <div style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "10px 8px",
+                      borderRadius: "0 10px 10px 0",
+                      backgroundColor: bookingStep === 3 ? "var(--primary-orange)" : "var(--bg-secondary)",
+                      color: bookingStep === 3 ? "white" : "var(--text-muted)",
+                      fontWeight: "800",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      borderTop: bookingStep === 3 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderBottom: bookingStep === 3 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderRight: bookingStep === 3 ? "1.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      borderLeft: "none"
+                    }}
+                      onClick={() => {
+                        if (bookingStep === 1) {
+                          handleNextStep();
+                        } else if (bookingStep === 2) {
+                          handleNextStep2();
+                        }
+                      }}
+                    >
+                      <span style={{
+                        width: "20px", height: "20px", borderRadius: "50%",
+                        backgroundColor: bookingStep === 3 ? "white" : "var(--border-light)",
+                        color: bookingStep === 3 ? "var(--primary-orange)" : "var(--text-muted)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "0.7rem", fontWeight: "900", flexShrink: 0
+                      }}>3</span>
+                      돌봄 상세
                     </div>
                   </div>
 
@@ -4220,76 +4662,530 @@ export default function UnifiedPortal() {
                     </div>
                   </div>
 
-                  {/* 방문 지역 & 개인정보 수집: 신규 고객만 입력, 재신청은 자동 적용 */}
-                  {!isReturningCustomer ? (
+                  {/* Next Step Button for Step 1 */}
+                  <button
+                    type="button"
+                    onClick={handleNextStep}
+                    className="btn btn-primary animate-fade-in"
+                    style={{
+                      width: "100%",
+                      padding: "16px",
+                      fontSize: "1.05rem",
+                      marginTop: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      boxShadow: "0 4px 12px rgba(255, 112, 67, 0.15)"
+                    }}
+                  >
+                    다음으로 ➔
+                  </button>
+                    </>
+                  )}
+
+                  {/* ===== PAGE 2: 건강 상태 체크 (필수) ===== */}
+                  {bookingStep === 2 && (
                     <>
+                      {/* Page 2 → Page 1 Back Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingStep(1);
+                          const portalElement = document.getElementById("booking-form-start");
+                          if (portalElement) {
+                            portalElement.scrollIntoView({ behavior: "smooth" });
+                          } else {
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          fontSize: "0.9rem",
+                          backgroundColor: "var(--bg-secondary)",
+                          border: "1.5px solid var(--border-light)",
+                          borderRadius: "10px",
+                          color: "var(--text-muted)",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          marginBottom: "16px",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        ← 이전 단계로 돌아가기 (예약 기본 정보)
+                      </button>
+
+                      {/* ===== 건강 상태 체크 섹션 ===== */}
                       <div className="form-group" style={{ borderTop: "1.5px dashed var(--border-light)", paddingTop: "16px" }}>
-                        <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "12px" }}>
-                          🔒 신규 고객 필수 보안 및 개인정보 기재 (방문 용도)
-                        </span>
-                      </div>
+                        <label className="form-label">🏥 건강 상태 체크 (필수)</label>
+                        <div style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "14px",
+                          backgroundColor: "var(--bg-secondary)",
+                          padding: "16px",
+                          borderRadius: "var(--border-radius-sm)",
+                          border: "1px solid var(--border-light)"
+                        }}>
+                          {/* 30일 이내 병원 방문 */}
+                          <div>
+                            <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "8px" }}>
+                              30일 이내 병원 방문 여부
+                            </p>
+                            <div style={{ display: "flex", gap: "10px" }}>
+                              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
+                                <input type="radio" name="recentHospital" value="yes" checked={recentHospitalVisit === "yes"} onChange={() => setRecentHospitalVisit("yes")} />
+                                <span>있음</span>
+                              </label>
+                              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
+                                <input type="radio" name="recentHospital" value="no" checked={recentHospitalVisit === "no"} onChange={() => setRecentHospitalVisit("no")} />
+                                <span>없음</span>
+                              </label>
+                            </div>
+                            {recentHospitalVisit === "yes" && (
+                              <div style={{ marginTop: "8px" }} className="animate-fade-in">
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={recentHospitalDetail}
+                                  onChange={(e) => setRecentHospitalDetail(e.target.value)}
+                                  placeholder="방문 날짜 및 진료 내용을 간략히 기재해 주세요 (예: 5/20 정기검진, 신부전 관리)"
+                                />
+                              </div>
+                            )}
+                          </div>
 
-                      <div className="form-group">
-                        <label className="form-label">📞 연락처 (필수)</label>
-                        <input
-                          type="tel"
-                          className="form-input"
-                          value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
-                          placeholder="예: 010-1234-5678"
-                          lang="ko"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                        />
-                      </div>
+                          {/* 전염성 질환 여부 */}
+                          <div>
+                            <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+                              전염성 질환 여부
+                            </p>
+                            <p style={{ fontSize: "0.75rem", color: "var(--warning-coral)", marginBottom: "8px", fontWeight: "600" }}>
+                              ※ 전염성 질환이 있을 시 돌봄이 불가합니다.
+                            </p>
+                            <div style={{ display: "flex", gap: "10px" }}>
+                              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
+                                <input type="radio" name="infectiousDisease" value="yes" checked={infectiousDisease === "yes"} onChange={() => setInfectiousDisease("yes")} />
+                                <span>있음</span>
+                              </label>
+                              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
+                                <input type="radio" name="infectiousDisease" value="no" checked={infectiousDisease === "no"} onChange={() => setInfectiousDisease("no")} />
+                                <span>없음</span>
+                              </label>
+                            </div>
+                            {infectiousDisease === "yes" && (
+                              <div style={{
+                                marginTop: "8px",
+                                backgroundColor: "var(--warning-coral-light)",
+                                border: "1.5px solid var(--warning-coral)",
+                                borderRadius: "6px",
+                                padding: "10px 12px",
+                                fontSize: "0.82rem",
+                                color: "var(--warning-coral)",
+                                fontWeight: "700"
+                              }} className="animate-fade-in">
+                                🚫 전염성 질환이 있는 경우 예약이 불가합니다. 완치 후 다시 신청해 주세요.
+                              </div>
+                            )}
+                          </div>
 
-                      <div className="form-group">
-                        <label className="form-label">🏠 방문 상세 주소 (필수)</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={clientAddress}
-                          onChange={(e) => setClientAddress(e.target.value)}
-                          placeholder="예: 경상남도 거제시 고현로 123, 101동 102호"
-                          lang="ko"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                        />
-                      </div>
-
-                      <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                        <div>
-                          <label className="form-label">🔑 공동현관 번호 (필수)</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={entranceCode}
-                            onChange={(e) => setEntranceCode(e.target.value)}
-                            placeholder="예: 종1234# 또는 없음"
-                          />
+                          {/* 면책 동의 */}
+                          <div style={{
+                            backgroundColor: "white",
+                            borderRadius: "8px",
+                            padding: "14px",
+                            border: "1px solid var(--border-light)"
+                          }}>
+                            <p style={{ fontSize: "0.82rem", color: "var(--text-main)", lineHeight: "1.7", marginBottom: "10px" }}>
+                              <strong>📋 다음 내용을 확인하고 동의하십니까?</strong><br />
+                              방문탁묘는 외부인이 출입하는 서비스 특성상<br />
+                              <strong>질병 잠복기 (3~14일)</strong> 또는 <strong>기존 건강 상태(스트레스)</strong>에 의해<br />
+                              방문 이후 질병이 발생할 수 있습니다.<br />
+                              보호자는 해당 사실을 이해하며<br />
+                              <strong>펫시터에게 감염 책임을 묻지 않음</strong>에 동의합니다.
+                            </p>
+                            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "10px", fontStyle: "italic" }}>
+                              ※ 질병 미고지로 인한 문제 발생 시 펫시터는 책임지지 않습니다.
+                            </p>
+                            <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                              <input
+                                type="checkbox"
+                                checked={healthAgreement}
+                                onChange={(e) => setHealthAgreement(e.target.checked)}
+                                style={{ marginTop: "2px", width: "16px", height: "16px", flexShrink: 0 }}
+                              />
+                              <span style={{ fontSize: "0.85rem", fontWeight: "700", color: healthAgreement ? "var(--success-mint)" : "var(--text-main)" }}>
+                                위 내용을 모두 확인하였으며 동의합니다.
+                              </span>
+                            </label>
+                          </div>
                         </div>
-                        <div>
-                          <label className="form-label">🔑 도어락 비밀번호 (필수)</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={doorlockCode}
-                            onChange={(e) => setDoorlockCode(e.target.value)}
-                            placeholder="예: 1234* 또는 열쇠"
-                          />
+                      </div>
+
+                      {/* Next Step Button for Step 2 */}
+                      <button
+                        type="button"
+                        onClick={handleNextStep2}
+                        className="btn btn-primary animate-fade-in"
+                        style={{
+                          width: "100%",
+                          padding: "16px",
+                          fontSize: "1.05rem",
+                          marginTop: "16px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                          boxShadow: "0 4px 12px rgba(255, 112, 67, 0.15)"
+                        }}
+                      >
+                        다음 단계로 ➔
+                      </button>
+                    </>
+                  )}
+
+                  {/* ===== PAGE 3: 돌봄 상세 및 예약 ===== */}
+                  {bookingStep === 3 && (
+                    <>
+                      {/* Page 3 → Page 2 Back Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingStep(2);
+                          const portalElement = document.getElementById("booking-form-start");
+                          if (portalElement) {
+                            portalElement.scrollIntoView({ behavior: "smooth" });
+                          } else {
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          fontSize: "0.9rem",
+                          backgroundColor: "var(--bg-secondary)",
+                          border: "1.5px solid var(--border-light)",
+                          borderRadius: "10px",
+                          color: "var(--text-muted)",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          marginBottom: "16px",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        ← 이전 단계로 돌아가기 (건강 상태 체크)
+                      </button>
+
+                      {/* 방문 지역 & 개인정보 수집: 신규 고객만 입력, 재신청은 자동 적용 */}
+                      {!isReturningCustomer ? (
+                        <>
+                          <div className="form-group" style={{ borderTop: "1.5px dashed var(--border-light)", paddingTop: "16px" }}>
+                            <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--text-main)", display: "block", marginBottom: "12px" }}>
+                              🔒 신규 고객 필수 보안 및 개인정보 기재 (방문 용도)
+                            </span>
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">📞 연락처 (필수)</label>
+                            <input
+                              type="tel"
+                              className="form-input"
+                              value={clientPhone}
+                              onChange={(e) => setClientPhone(e.target.value)}
+                              placeholder="예: 010-1234-5678"
+                              lang="ko"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">🏠 방문 상세 주소 (필수)</label>
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={clientAddress}
+                              onChange={(e) => setClientAddress(e.target.value)}
+                              placeholder="예: 경상남도 거제시 고현로 123, 101동 102호"
+                              lang="ko"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            />
+                          </div>
+
+                          <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                            <div>
+                              <label className="form-label">🔑 공동현관 번호 (필수)</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={entranceCode}
+                                onChange={(e) => setEntranceCode(e.target.value)}
+                                placeholder="예: 종1234# 또는 없음"
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label">🔑 도어락 비밀번호 (필수)</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={doorlockCode}
+                                onChange={(e) => setDoorlockCode(e.target.value)}
+                                placeholder="예: 1234* 또는 열쇠"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">🚪 상세 출입 방법 안내 (선택)</label>
+                            <textarea
+                              rows="2"
+                              className="form-input"
+                              value={entryMethodDetail}
+                              onChange={(e) => setEntryMethodDetail(e.target.value)}
+                              placeholder="예: 공동현관 호출 후 경비실 승인 필요 / 도어락 커버를 올리고 입력 등"
+                              style={{ resize: "vertical", fontSize: "0.85rem" }}
+                              lang="ko"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            ></textarea>
+                          </div>
+
+                          <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                            <div>
+                              <label className="form-label">🅿️ 차량등록 및 주차 여부</label>
+                              <select
+                                className="form-input"
+                                value={parkingOption}
+                                onChange={(e) => setParkingOption(e.target.value)}
+                                style={{ appearance: "auto" }}
+                              >
+                                <option value="free">무료 주차 가능</option>
+                                <option value="paid">유료 주차 가능</option>
+                                <option value="register">차량 사전 등록 필요</option>
+                                <option value="impossible">주차 불가/대중교통</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="form-label">📸 사진/영상 전송 희망</label>
+                              <select
+                                className="form-input"
+                                value={photoVideoPreference}
+                                onChange={(e) => setPhotoVideoPreference(e.target.value)}
+                                style={{ appearance: "auto" }}
+                              >
+                                <option value="many">사진, 영상 많이 보내주세요</option>
+                                <option value="confirmation">방문/퇴실 확인 문자만 한 통</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="form-group" style={{
+                            backgroundColor: "var(--bg-secondary)",
+                            padding: "14px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border-light)",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "10px",
+                            marginTop: "4px"
+                          }}>
+                            <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                              <input
+                                type="checkbox"
+                                checked={snsAgreement}
+                                onChange={(e) => setSnsAgreement(e.target.checked)}
+                                style={{ marginTop: "2px" }}
+                              />
+                              <span style={{ fontSize: "0.82rem", color: "var(--text-main)" }}>
+                                [선택] 동영상 및 사진 SNS/블로그 홍보 마케팅 사용 동의
+                              </span>
+                            </label>
+
+                            <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", borderTop: "1px solid var(--border-light)", paddingTop: "8px" }}>
+                              <input
+                                type="checkbox"
+                                checked={privacyAgreement}
+                                onChange={(e) => setPrivacyAgreement(e.target.checked)}
+                                style={{ marginTop: "2px" }}
+                              />
+                              <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-main)" }}>
+                                [필수] 개인정보 수집 및 이용 동의 (방문탁묘 목적 수집: 연락처, 주소, 공동현관 및 도어락 비밀번호, 출입방법, 차량등록 여부 등)
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">📍 방문 예정 지역 (필수)</label>
+                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "6px" }}>
+                              * 거제 기본 지역(고현, 장평, 상문, 수월, 중곡, 옥포, 아주, 사곡)은 추가금이 없으며, 그 외 지역은 <strong>추가금 +5,000원</strong>이 발생합니다.
+                            </div>
+                            <select
+                              className="form-input"
+                              value={visitArea}
+                              onChange={(e) => setVisitArea(e.target.value)}
+                              style={{ appearance: "auto" }}
+                              required
+                            >
+                              <option value="고현">고현동 (기본 지역)</option>
+                              <option value="장평">장평동 (기본 지역)</option>
+                              <option value="상문">상문동 (기본 지역)</option>
+                              <option value="수월">수월동 (기본 지역)</option>
+                              <option value="중곡">중곡동 (기본 지역)</option>
+                              <option value="옥포">옥포동 (기본 지역)</option>
+                              <option value="아주">아주동 (기본 지역)</option>
+                              <option value="사곡">사곡리 (기본 지역)</option>
+                              <option value="기타">기타 지역 (추가금 +5,000원)</option>
+                            </select>
+                          </div>
+
+                          {visitArea === "기타" && (
+                            <div className="form-group animate-fade-in">
+                              <label className="form-label">기타 상세 지역 입력</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={customArea}
+                                onChange={(e) => setCustomArea(e.target.value)}
+                                placeholder="예: 하청면, 사등면, 장승포동 등 상세 지역명"
+                                required
+                              />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                          padding: "16px",
+                          backgroundColor: "var(--bg-secondary)",
+                          borderRadius: "var(--border-radius-sm)",
+                          border: "1px solid var(--border-light)",
+                          fontSize: "0.85rem",
+                          marginBottom: "16px"
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <span>📍</span>
+                            <span style={{ color: "var(--text-muted)" }}>방문 지역:</span>
+                            <strong style={{ color: "var(--text-main)" }}>{MOCK_PREVIOUS_BOOKING.visitArea}</strong>
+                            <span style={{
+                              marginLeft: "auto",
+                              fontSize: "0.72rem",
+                              backgroundColor: "var(--success-mint-light)",
+                              color: "var(--success-mint)",
+                              padding: "2px 7px",
+                              borderRadius: "8px",
+                              fontWeight: "700"
+                            }}>이전 정보 자동 적용</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border-light)", paddingTop: "8px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>연락처:</span>
+                            <span style={{ color: "var(--text-main)", fontWeight: "600" }}>{MOCK_PREVIOUS_BOOKING.clientPhone}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: "var(--text-muted)" }}>주소:</span>
+                            <span style={{ color: "var(--text-main)", fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "250px" }}>{MOCK_PREVIOUS_BOOKING.clientAddress}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: "var(--text-muted)" }}>출입코드:</span>
+                            <span style={{ color: "var(--text-main)", fontWeight: "600" }}>공동현관(••••) / 도어락(••••)</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: "var(--text-muted)" }}>주차/사진:</span>
+                            <span style={{ color: "var(--text-main)", fontWeight: "600" }}>
+                              {MOCK_PREVIOUS_BOOKING.parkingOption === "free" ? "무료주차" : "주차등록"} / {MOCK_PREVIOUS_BOOKING.photoVideoPreference === "many" ? "많이 전송" : "확인문자"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ===== 반려동물 성격 섹션 ===== */}
+                      <div className="form-group">
+                        <label className="form-label">🐾 반려동물 성격 (복수 선택 가능)</label>
+                        <div style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "8px",
+                          backgroundColor: "var(--bg-secondary)",
+                          padding: "16px",
+                          borderRadius: "var(--border-radius-sm)",
+                          border: "1px solid var(--border-light)"
+                        }}>
+                          {["사람 좋아함", "낯가림 있음", "겁이 많음", "공격성 있음", "만지는 거 싫어함"].map((trait) => {
+                            const isSelected = petPersonality.includes(trait);
+                            return (
+                              <button
+                                key={trait}
+                                type="button"
+                                onClick={() => {
+                                  setPetPersonality(prev =>
+                                    isSelected ? prev.filter(t => t !== trait) : [...prev, trait]
+                                  );
+                                }}
+                                style={{
+                                  padding: "8px 14px",
+                                  borderRadius: "20px",
+                                  border: isSelected ? "2px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                                  backgroundColor: isSelected ? "var(--primary-orange-light)" : "white",
+                                  color: isSelected ? "var(--primary-orange)" : "var(--text-muted)",
+                                  fontWeight: "700",
+                                  fontSize: "0.8rem",
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease"
+                                }}
+                              >
+                                {isSelected ? "✓ " : ""}{trait}
+                              </button>
+                            );
+                          })}
+                          <div style={{ width: "100%", marginTop: "4px" }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={petPersonalityOther}
+                              onChange={(e) => setPetPersonalityOther(e.target.value)}
+                              placeholder="기타 성격 특이사항을 직접 입력 (예: 밥 먹을 때 예민함, 특정 소리에 민감)"
+                              style={{ fontSize: "0.83rem" }}
+                              lang="ko"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                            />
+                          </div>
+
+                          <div style={{
+                            width: "100%",
+                            marginTop: "10px",
+                            color: "var(--warning-coral)",
+                            fontSize: "0.8rem",
+                            fontWeight: "700",
+                            backgroundColor: "var(--warning-coral-light)",
+                            border: "1px dashed var(--warning-coral)",
+                            padding: "10px 12px",
+                            borderRadius: "8px"
+                          }}>
+                            *겁이 많거나 공격성이 있는경우 아이의 스트레스를 고려 하여 기본케어(급여,물,화장실관리)만 진행될 수 있습니다
+                          </div>
                         </div>
                       </div>
 
+                      {/* ===== 사료 급여 방법 섹션 ===== */}
                       <div className="form-group">
-                        <label className="form-label">🚪 상세 출입 방법 안내 (선택)</label>
+                        <label className="form-label">🍽️ 사료 급여 방법 안내</label>
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "6px" }}>
+                          그릇 위치, 급여 방법, 정수 또는 수돗물 여부, 간식 알러지 여부 등을 자세히 기재해 주세요.
+                        </div>
                         <textarea
-                          rows="2"
+                          rows="3"
                           className="form-input"
-                          value={entryMethodDetail}
-                          onChange={(e) => setEntryMethodDetail(e.target.value)}
-                          placeholder="예: 공동현관 호출 후 경비실 승인 필요 / 도어락 커버를 올리고 입력 등"
+                          value={feedingInfo}
+                          onChange={(e) => setFeedingInfo(e.target.value)}
+                          placeholder="예: 주방 싱크대 아래 파란 그릇, 건식 사료 1/3컵 1일 2회, 정수된 물 사용, 참치 알러지 있음"
                           style={{ resize: "vertical", fontSize: "0.85rem" }}
                           lang="ko"
                           autoCapitalize="none"
@@ -4298,545 +5194,157 @@ export default function UnifiedPortal() {
                         ></textarea>
                       </div>
 
-                      <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                        <div>
-                          <label className="form-label">🅿️ 차량등록 및 주차 여부</label>
-                          <select
-                            className="form-input"
-                            value={parkingOption}
-                            onChange={(e) => setParkingOption(e.target.value)}
-                            style={{ appearance: "auto" }}
-                          >
-                            <option value="free">무료 주차 가능</option>
-                            <option value="paid">유료 주차 가능</option>
-                            <option value="register">차량 사전 등록 필요</option>
-                            <option value="impossible">주차 불가/대중교통</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="form-label">📸 사진/영상 전송 희망</label>
-                          <select
-                            className="form-input"
-                            value={photoVideoPreference}
-                            onChange={(e) => setPhotoVideoPreference(e.target.value)}
-                            style={{ appearance: "auto" }}
-                          >
-                            <option value="many">사진, 영상 많이 보내주세요</option>
-                            <option value="confirmation">방문/퇴실 확인 문자만 한 통</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="form-group" style={{
-                        backgroundColor: "var(--bg-secondary)",
-                        padding: "14px",
-                        borderRadius: "8px",
-                        border: "1px solid var(--border-light)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "10px",
-                        marginTop: "4px"
-                      }}>
-                        <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
-                          <input
-                            type="checkbox"
-                            checked={snsAgreement}
-                            onChange={(e) => setSnsAgreement(e.target.checked)}
-                            style={{ marginTop: "2px" }}
-                          />
-                          <span style={{ fontSize: "0.82rem", color: "var(--text-main)" }}>
-                            [선택] 동영상 및 사진 SNS/블로그 홍보 마케팅 사용 동의
-                          </span>
-                        </label>
-
-                        <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", borderTop: "1px solid var(--border-light)", paddingTop: "8px" }}>
-                          <input
-                            type="checkbox"
-                            checked={privacyAgreement}
-                            onChange={(e) => setPrivacyAgreement(e.target.checked)}
-                            style={{ marginTop: "2px" }}
-                          />
-                          <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--text-main)" }}>
-                            [필수] 개인정보 수집 및 이용 동의 (방문탁묘 목적 수집: 연락처, 주소, 공동현관 및 도어락 비밀번호, 출입방법, 차량등록 여부 등)
-                          </span>
-                        </label>
-                      </div>
-
+                      {/* ===== 화장실 관리 방법 섹션 ===== */}
                       <div className="form-group">
-                        <label className="form-label">📍 방문 예정 지역 (필수)</label>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "6px" }}>
-                          * 거제 기본 지역(고현, 장평, 상문, 수월, 중곡, 옥포, 아주, 사곡)은 추가금이 없으며, 그 외 지역은 <strong>추가금 +5,000원</strong>이 발생합니다.
+                        <label className="form-label">🚿 화장실 관리 방법 안내</label>
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "6px" }}>
+                          모래 종류, 처리 방법, 위치 등을 자세히 기재해 주세요.
                         </div>
-                        <select
+                        <textarea
+                          rows="3"
                           className="form-input"
-                          value={visitArea}
-                          onChange={(e) => setVisitArea(e.target.value)}
-                          style={{ appearance: "auto" }}
-                          required
-                        >
-                          <option value="고현">고현동 (기본 지역)</option>
-                          <option value="장평">장평동 (기본 지역)</option>
-                          <option value="상문">상문동 (기본 지역)</option>
-                          <option value="수월">수월동 (기본 지역)</option>
-                          <option value="중곡">중곡동 (기본 지역)</option>
-                          <option value="옥포">옥포동 (기본 지역)</option>
-                          <option value="아주">아주동 (기본 지역)</option>
-                          <option value="사곡">사곡리 (기본 지역)</option>
-                          <option value="기타">기타 지역 (추가금 +5,000원)</option>
-                        </select>
-                      </div>
-
-                      {visitArea === "기타" && (
-                        <div className="form-group animate-fade-in">
-                          <label className="form-label">기타 상세 지역 입력</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={customArea}
-                            onChange={(e) => setCustomArea(e.target.value)}
-                            placeholder="예: 하청면, 사등면, 장승포동 등 상세 지역명"
-                            required
-                          />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                      padding: "16px",
-                      backgroundColor: "var(--bg-secondary)",
-                      borderRadius: "var(--border-radius-sm)",
-                      border: "1px solid var(--border-light)",
-                      fontSize: "0.85rem"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <span>📍</span>
-                        <span style={{ color: "var(--text-muted)" }}>방문 지역:</span>
-                        <strong style={{ color: "var(--text-main)" }}>{MOCK_PREVIOUS_BOOKING.visitArea}</strong>
-                        <span style={{
-                          marginLeft: "auto",
-                          fontSize: "0.72rem",
-                          backgroundColor: "var(--success-mint-light)",
-                          color: "var(--success-mint)",
-                          padding: "2px 7px",
-                          borderRadius: "8px",
-                          fontWeight: "700"
-                        }}>이전 정보 자동 적용</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border-light)", paddingTop: "8px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>연락처:</span>
-                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>{MOCK_PREVIOUS_BOOKING.clientPhone}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "var(--text-muted)" }}>주소:</span>
-                        <span style={{ color: "var(--text-main)", fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "250px" }}>{MOCK_PREVIOUS_BOOKING.clientAddress}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "var(--text-muted)" }}>출입코드:</span>
-                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>공동현관(••••) / 도어락(••••)</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "var(--text-muted)" }}>주차/사진:</span>
-                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>
-                          {MOCK_PREVIOUS_BOOKING.parkingOption === "free" ? "무료주차" : "주차등록"} / {MOCK_PREVIOUS_BOOKING.photoVideoPreference === "many" ? "많이 전송" : "확인문자"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-
-                  {/* Real-time price breakdown */}
-                  <div style={{
-                    backgroundColor: "var(--bg-primary)",
-                    padding: "16px",
-                    borderRadius: "var(--border-radius-sm)",
-                    border: "1px solid var(--border-light)",
-                    marginTop: "8px"
-                  }}>
-                    <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
-                      💰 실시간 예상 이용 요금 상세
-                    </span>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                      <span style={{ color: "var(--text-muted)" }}>기본 요금 (17,000원 × {calculateBookingPrice().daysCount}일)</span>
-                      <span style={{ fontWeight: "600" }}>{calculateBookingPrice().basePrice.toLocaleString()}원</span>
-                    </div>
-
-                    {isHoliday && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px", color: "var(--warning-coral)" }}>
-                        <span>공휴일/명절 할증 (+5,000원)</span>
-                        <span style={{ fontWeight: "600" }}>+5,000원</span>
-                      </div>
-                    )}
-
-                    {optPreMeet && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>사전 만남 추가요금</span>
-                        <span style={{ fontWeight: "600" }}>+10,000원</span>
-                      </div>
-                    )}
-
-                    {optMedication && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>투약 1회 추가요금</span>
-                        <span style={{ fontWeight: "600" }}>+5,000원</span>
-                      </div>
-                    )}
-
-                    {optForcedFeeding && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>급여도움 (강제급여) 추가요금</span>
-                        <span style={{ fontWeight: "600" }}>+10,000원</span>
-                      </div>
-                    )}
-
-                    {optHospital && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>병원 방문 1회 추가요금</span>
-                        <span style={{ fontWeight: "600" }}>+20,000원</span>
-                      </div>
-                    )}
-
-                    {optDogAdd && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>강아지 1마리 추가요금</span>
-                        <span style={{ fontWeight: "600" }}>+8,000원</span>
-                      </div>
-                    )}
-
-                    {optTwoVisits && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                        <span style={{ color: "var(--text-muted)" }}>1일 2회 방문 추가요금</span>
-                        <span style={{ fontWeight: "600" }}>+13,000원</span>
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "8px" }}>
-                      <span style={{ color: "var(--text-muted)" }}>방문 지역 추가금 ({visitArea === "기타" ? (customArea || "기타 지역") : (visitArea + (visitArea === "사곡" ? "리" : "동"))})</span>
-                      <span style={{ fontWeight: "600", color: visitArea === "기타" ? "var(--warning-coral)" : "var(--success-mint)" }}>
-                        {visitArea === "기타" ? "+5,000원" : "0원 (기본)"}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: "800", borderTop: "1px solid var(--border-light)", paddingTop: "8px", color: "var(--primary-orange)" }}>
-                      <span>최종 예상 요금</span>
-                      <span>
-                        {calculateBookingPrice().totalPrice.toLocaleString()}원
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Page 1 → Page 2 Navigation Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBookingStep(2);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="btn btn-primary"
-                    style={{ width: "100%", padding: "16px", fontSize: "1.05rem", marginTop: "4px" }}
-                  >
-                    다음 단계로 이동 → 건강 & 돌봄 상세 📋
-                  </button>
-                    </>
-                  )}
-
-                  {/* ===== PAGE 2: 건강 & 돌봄 상세 ===== */}
-                  {bookingStep === 2 && (
-                    <>
-                  {/* Page 2 → Page 1 Back Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBookingStep(1);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      fontSize: "0.9rem",
-                      backgroundColor: "var(--bg-secondary)",
-                      border: "1.5px solid var(--border-light)",
-                      borderRadius: "10px",
-                      color: "var(--text-muted)",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      marginBottom: "4px",
-                      transition: "all 0.2s ease"
-                    }}
-                  >
-                    ← 이전 단계로 돌아가기 (예약 기본 정보)
-                  </button>
-
-                  {/* ===== 건강 상태 체크 섹션 ===== */}
-                  <div className="form-group">
-                    <label className="form-label">🏥 건강 상태 체크 (필수)</label>
-                    <div style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "14px",
-                      backgroundColor: "var(--bg-secondary)",
-                      padding: "16px",
-                      borderRadius: "var(--border-radius-sm)",
-                      border: "1px solid var(--border-light)"
-                    }}>
-                      {/* 30일 이내 병원 방문 */}
-                      <div>
-                        <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "8px" }}>
-                          30일 이내 병원 방문 여부
-                        </p>
-                        <div style={{ display: "flex", gap: "10px" }}>
-                          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
-                            <input type="radio" name="recentHospital" value="yes" checked={recentHospitalVisit === "yes"} onChange={() => setRecentHospitalVisit("yes")} />
-                            <span>있음</span>
-                          </label>
-                          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
-                            <input type="radio" name="recentHospital" value="no" checked={recentHospitalVisit === "no"} onChange={() => setRecentHospitalVisit("no")} />
-                            <span>없음</span>
-                          </label>
-                        </div>
-                        {recentHospitalVisit === "yes" && (
-                          <div style={{ marginTop: "8px" }} className="animate-fade-in">
-                            <input
-                              type="text"
-                              className="form-input"
-                              value={recentHospitalDetail}
-                              onChange={(e) => setRecentHospitalDetail(e.target.value)}
-                              placeholder="방문 날짜 및 진료 내용을 간략히 기재해 주세요 (예: 5/20 정기검진, 신부전 관리)"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 전염성 질환 여부 */}
-                      <div>
-                        <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
-                          전염성 질환 여부
-                        </p>
-                        <p style={{ fontSize: "0.75rem", color: "var(--warning-coral)", marginBottom: "8px", fontWeight: "600" }}>
-                          ※ 전염성 질환이 있을 시 돌봄이 불가합니다.
-                        </p>
-                        <div style={{ display: "flex", gap: "10px" }}>
-                          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
-                            <input type="radio" name="infectiousDisease" value="yes" checked={infectiousDisease === "yes"} onChange={() => setInfectiousDisease("yes")} />
-                            <span>있음</span>
-                          </label>
-                          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
-                            <input type="radio" name="infectiousDisease" value="no" checked={infectiousDisease === "no"} onChange={() => setInfectiousDisease("no")} />
-                            <span>없음</span>
-                          </label>
-                        </div>
-                        {infectiousDisease === "yes" && (
-                          <div style={{
-                            marginTop: "8px",
-                            backgroundColor: "var(--warning-coral-light)",
-                            border: "1.5px solid var(--warning-coral)",
-                            borderRadius: "6px",
-                            padding: "10px 12px",
-                            fontSize: "0.82rem",
-                            color: "var(--warning-coral)",
-                            fontWeight: "700"
-                          }} className="animate-fade-in">
-                            🚫 전염성 질환이 있는 경우 예약이 불가합니다. 완치 후 다시 신청해 주세요.
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 면책 동의 */}
-                      <div style={{
-                        backgroundColor: "white",
-                        borderRadius: "8px",
-                        padding: "14px",
-                        border: "1px solid var(--border-light)"
-                      }}>
-                        <p style={{ fontSize: "0.82rem", color: "var(--text-main)", lineHeight: "1.7", marginBottom: "10px" }}>
-                          <strong>📋 다음 내용을 확인하고 동의하십니까?</strong><br />
-                          방문탁묘는 외부인이 출입하는 서비스 특성상<br />
-                          <strong>질병 잠복기 (3~14일)</strong> 또는 <strong>기존 건강 상태(스트레스)</strong>에 의해<br />
-                          방문 이후 질병이 발생할 수 있습니다.<br />
-                          보호자는 해당 사실을 이해하며<br />
-                          <strong>펫시터에게 감염 책임을 묻지 않음</strong>에 동의합니다.
-                        </p>
-                        <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "10px", fontStyle: "italic" }}>
-                          ※ 질병 미고지로 인한 문제 발생 시 펫시터는 책임지지 않습니다.
-                        </p>
-                        <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
-                          <input
-                            type="checkbox"
-                            checked={healthAgreement}
-                            onChange={(e) => setHealthAgreement(e.target.checked)}
-                            style={{ marginTop: "2px", width: "16px", height: "16px", flexShrink: 0 }}
-                          />
-                          <span style={{ fontSize: "0.85rem", fontWeight: "700", color: healthAgreement ? "var(--success-mint)" : "var(--text-main)" }}>
-                            위 내용을 모두 확인하였으며 동의합니다.
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ===== 반려동물 성격 섹션 ===== */}
-                  <div className="form-group">
-                    <label className="form-label">🐾 반려동물 성격 (복수 선택 가능)</label>
-                    <div style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "8px",
-                      backgroundColor: "var(--bg-secondary)",
-                      padding: "16px",
-                      borderRadius: "var(--border-radius-sm)",
-                      border: "1px solid var(--border-light)"
-                    }}>
-                      {["사람 좋아함", "낯가림 있음", "겁이 많음", "공격성 있음", "만지는 거 싫어함"].map((trait) => {
-                        const isSelected = petPersonality.includes(trait);
-                        return (
-                          <button
-                            key={trait}
-                            type="button"
-                            onClick={() => {
-                              setPetPersonality(prev =>
-                                isSelected ? prev.filter(t => t !== trait) : [...prev, trait]
-                              );
-                            }}
-                            style={{
-                              padding: "8px 14px",
-                              borderRadius: "20px",
-                              border: isSelected ? "2px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
-                              backgroundColor: isSelected ? "var(--primary-orange-light)" : "white",
-                              color: isSelected ? "var(--primary-orange)" : "var(--text-muted)",
-                              fontWeight: "700",
-                              fontSize: "0.8rem",
-                              cursor: "pointer",
-                              transition: "all 0.15s ease"
-                            }}
-                          >
-                            {isSelected ? "✓ " : ""}{trait}
-                          </button>
-                        );
-                      })}
-                      <div style={{ width: "100%", marginTop: "4px" }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={petPersonalityOther}
-                          onChange={(e) => setPetPersonalityOther(e.target.value)}
-                          placeholder="기타 성격 특이사항을 직접 입력 (예: 밥 먹을 때 예민함, 특정 소리에 민감)"
-                          style={{ fontSize: "0.83rem" }}
+                          value={litterInfo}
+                          onChange={(e) => setLitterInfo(e.target.value)}
+                          placeholder="예: 베란다에 두부 모래 화장실, 사용 후 응고된 부분 스쿱으로 제거 후 봉투에 담아 버림"
+                          style={{ resize: "vertical", fontSize: "0.85rem" }}
                           lang="ko"
                           autoCapitalize="none"
                           autoCorrect="off"
                           spellCheck={false}
+                        ></textarea>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">📝 펫시터 추가 요청 사항</label>
+                        <textarea
+                          rows="3"
+                          className="form-input"
+                          value={careMemo}
+                          onChange={(e) => setCareMemo(e.target.value)}
+                          placeholder="투약 지침, 산책 시 주의사항, 도어락 출입 수칙 등 기타 전달사항을 자세히 적어주세요."
+                          style={{ resize: "vertical" }}
+                          lang="ko"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                        ></textarea>
+                      </div>
+
+                      {/* Real-time price breakdown */}
+                      <div style={{
+                        backgroundColor: "var(--bg-primary)",
+                        padding: "16px",
+                        borderRadius: "var(--border-radius-sm)",
+                        border: "1px solid var(--border-light)",
+                        marginTop: "8px"
+                      }}>
+                        <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                          💰 실시간 예상 이용 요금 상세
+                        </span>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                          <span style={{ color: "var(--text-muted)" }}>기본 요금 (17,000원 × {calculateBookingPrice().daysCount}일)</span>
+                          <span style={{ fontWeight: "600" }}>{calculateBookingPrice().basePrice.toLocaleString()}원</span>
+                        </div>
+
+                        {isHoliday && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px", color: "var(--warning-coral)" }}>
+                            <span>공휴일/명절 할증 (+5,000원)</span>
+                            <span style={{ fontWeight: "600" }}>+5,000원</span>
+                          </div>
+                        )}
+
+                        {optPreMeet && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>사전 만남 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+10,000원</span>
+                          </div>
+                        )}
+
+                        {optMedication && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>투약 1회 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+5,000원</span>
+                          </div>
+                        )}
+
+                        {optForcedFeeding && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>급여도움 (강제급여) 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+10,000원</span>
+                          </div>
+                        )}
+
+                        {optHospital && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>병원 방문 1회 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+20,000원</span>
+                          </div>
+                        )}
+
+                        {optDogAdd && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>강아지 1마리 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+8,000원</span>
+                          </div>
+                        )}
+
+                        {optTwoVisits && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>1일 2회 방문 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+13,000원</span>
+                          </div>
+                        )}
+
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "8px" }}>
+                          <span style={{ color: "var(--text-muted)" }}>방문 지역 추가금 ({visitArea === "기타" ? (customArea || "기타 지역") : (visitArea + (visitArea === "사곡" ? "리" : "동"))})</span>
+                          <span style={{ fontWeight: "600", color: visitArea === "기타" ? "var(--warning-coral)" : "var(--success-mint)" }}>
+                            {visitArea === "기타" ? "+5,000원" : "0원 (기본)"}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: "800", borderTop: "1px solid var(--border-light)", paddingTop: "8px", color: "var(--primary-orange)" }}>
+                          <span>최종 예상 요금</span>
+                          <span>
+                            {calculateBookingPrice().totalPrice.toLocaleString()}원
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Network error simulator control */}
+                      <div style={{
+                        backgroundColor: "var(--bg-primary)",
+                        padding: "12px 16px",
+                        borderRadius: "var(--border-radius-sm)",
+                        border: "1px solid var(--border-light)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginTop: "8px"
+                      }}>
+                        <div>
+                          <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block" }}>
+                            ⚠️ 네트워크 에러 강제 발생 시뮬레이션
+                          </span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                            에러 발생 시의 무한로딩 탈출 안내문을 테스트합니다.
+                          </span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={forceNetworkError}
+                          onChange={(e) => setForceNetworkError(e.target.checked)}
+                          style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--warning-coral)" }}
                         />
                       </div>
 
-                      <div style={{
-                        width: "100%",
-                        marginTop: "10px",
-                        color: "var(--warning-coral)",
-                        fontSize: "0.8rem",
-                        fontWeight: "700",
-                        backgroundColor: "var(--warning-coral-light)",
-                        border: "1px dashed var(--warning-coral)",
-                        padding: "10px 12px",
-                        borderRadius: "8px"
-                      }}>
-                        *겁이 많거나 공격성이 있는경우 아이의 스트레스를 고려 하여 기본케어(급여,물,화장실관리)만 진행될 수 있습니다
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ===== 사료 급여 방법 섹션 ===== */}
-                  <div className="form-group">
-                    <label className="form-label">🍽️ 사료 급여 방법 안내</label>
-                    <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "6px" }}>
-                      그릇 위치, 급여 방법, 정수 또는 수돗물 여부, 간식 알러지 여부 등을 자세히 기재해 주세요.
-                    </div>
-                    <textarea
-                      rows="3"
-                      className="form-input"
-                      value={feedingInfo}
-                      onChange={(e) => setFeedingInfo(e.target.value)}
-                      placeholder="예: 주방 싱크대 아래 파란 그릇, 건식 사료 1/3컵 1일 2회, 정수된 물 사용, 참치 알러지 있음"
-                      style={{ resize: "vertical", fontSize: "0.85rem" }}
-                      lang="ko"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    ></textarea>
-                  </div>
-
-                  {/* ===== 화장실 관리 방법 섹션 ===== */}
-                  <div className="form-group">
-                    <label className="form-label">🚿 화장실 관리 방법 안내</label>
-                    <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "6px" }}>
-                      모래 종류, 처리 방법, 위치 등을 자세히 기재해 주세요.
-                    </div>
-                    <textarea
-                      rows="3"
-                      className="form-input"
-                      value={litterInfo}
-                      onChange={(e) => setLitterInfo(e.target.value)}
-                      placeholder="예: 베란다에 두부 모래 화장실, 사용 후 응고된 부분 스쿱으로 제거 후 봉투에 담아 버림"
-                      style={{ resize: "vertical", fontSize: "0.85rem" }}
-                      lang="ko"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    ></textarea>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">📝 펫시터 추가 요청 사항</label>
-                    <textarea
-                      rows="3"
-                      className="form-input"
-                      value={careMemo}
-                      onChange={(e) => setCareMemo(e.target.value)}
-                      placeholder="투약 지침, 산책 시 주의사항, 도어락 출입 수칙 등 기타 전달사항을 자세히 적어주세요."
-                      style={{ resize: "vertical" }}
-                      lang="ko"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    ></textarea>
-                  </div>
-
-                  {/* Network error simulator control */}
-                  <div style={{
-                    backgroundColor: "var(--bg-primary)",
-                    padding: "12px 16px",
-                    borderRadius: "var(--border-radius-sm)",
-                    border: "1px solid var(--border-light)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginTop: "8px"
-                  }}>
-                    <div>
-                      <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block" }}>
-                        ⚠️ 네트워크 에러 강제 발생 시뮬레이션
-                      </span>
-                      <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                        에러 발생 시의 무한로딩 탈출 안내문을 테스트합니다.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={forceNetworkError}
-                      onChange={(e) => setForceNetworkError(e.target.checked)}
-                      style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--warning-coral)" }}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={isBookingLoading}
-                    style={{ width: "100%", padding: "16px", fontSize: "1.1rem", marginTop: "12px" }}
-                  >
-                    {isBookingLoading ? "예약 신청 전송 중... (안전 복구 보호 활성)" : "돌봄 예약 확정하기 📝"}
-                  </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={isBookingLoading}
+                        style={{ width: "100%", padding: "16px", fontSize: "1.1rem", marginTop: "12px" }}
+                      >
+                        {isBookingLoading ? "예약 신청 전송 중... (안전 복구 보호 활성)" : "돌봄 예약 확정하기 📝"}
+                      </button>
                     </>
                   )}
                 </form>
@@ -5865,6 +6373,9 @@ export default function UnifiedPortal() {
         </div>
       </footer>
 
+      {/* Toss Payments SDK script loader */}
+      {/* afterInteractive: 페이지 하이드레이션 직후 로드 → 결제 버튼 클릭 전 SDK 준비 완료 보장 */}
+      <Script src="https://js.tosspayments.com/v1/payment" strategy="afterInteractive" />
     </div>
   );
 }

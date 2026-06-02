@@ -257,3 +257,46 @@ a {
   color: var(--primary-orange);
   font-size: 1.2rem;
 }
+
+/* Responsive Mobile Styles */
+@media (max-width: 768px) {
+  /* Navigation Menu */
+  .desktop-nav {
+    display: none !important;
+  }
+  
+  .mobile-nav-toggle {
+    display: block !important;
+  }
+  
+  /* Hero Section */
+  .hero-container {
+    gap: 32px !important;
+    grid-template-columns: 1fr !important;
+  }
+  
+  .hero-text {
+    text-align: center !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .hero-title {
+    font-size: 2.1rem !important; /* Scaled down font size for mobile */
+    line-height: 1.25 !important;
+    word-break: keep-all; /* Prevent unnatural line breaks */
+    text-align: center !important;
+  }
+  
+  .hero-paragraph {
+    font-size: 1rem !important; /* Easier to read font size */
+    margin-bottom: 24px !important;
+    text-align: center !important;
+  }
+  
+  .hero-status {
+    display: inline-flex !important;
+    margin: 0 auto;
+  }
+}
