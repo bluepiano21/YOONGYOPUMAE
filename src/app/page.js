@@ -317,6 +317,11 @@ export default function UnifiedPortal() {
   const [returningFoundCustomer, setReturningFoundCustomer] = useState(null);
   const [returningSearchDone, setReturningSearchDone] = useState(false);
 
+  // --- 로그인 모달 세부 상태 ---
+  const [activeLoginTab, setActiveLoginTab] = useState("client"); // 'client' or 'admin'
+  const [simpleLoginName, setSimpleLoginName] = useState("");
+  const [simpleLoginPhone, setSimpleLoginPhone] = useState("");
+
   // --- 내 예약 관리 모달 상태 ---
   const [showMyReservationModal, setShowMyReservationModal] = useState(false);
   const [myReservationTarget, setMyReservationTarget] = useState(null); // 선택된 예약 객체
@@ -324,6 +329,7 @@ export default function UnifiedPortal() {
   const [editResVisitTime, setEditResVisitTime] = useState("");
   const [editResVisitArea, setEditResVisitArea] = useState("");
   const [editResOptions, setEditResOptions] = useState([]); // 선택 옵션 배열
+  const [editResMandatoryRequirements, setEditResMandatoryRequirements] = useState("");
   const [editResIsSaving, setEditResIsSaving] = useState(false);
 
   // 재신청 고객이 이전에 저장한 정보 (실제 서비스에서는 DB에서 불러옴 - 여기서는 모의 데이터)
@@ -419,6 +425,7 @@ export default function UnifiedPortal() {
     setEditResVisitTime(reservation.visit_time || "");
     setEditResVisitArea(reservation.visit_area || "");
     setEditResOptions([...(reservation.selected_options || [])]);
+    setEditResMandatoryRequirements(reservation.mandatory_requirements || "");
     setShowMyReservationModal(true);
   };
 
@@ -426,6 +433,7 @@ export default function UnifiedPortal() {
     setShowMyReservationModal(false);
     setMyReservationTarget(null);
     setIsEditingReservation(false);
+    setEditResMandatoryRequirements("");
     setEditResIsSaving(false);
   };
 
@@ -438,6 +446,7 @@ export default function UnifiedPortal() {
       visit_time: editResVisitTime,
       visit_area: editResVisitArea,
       selected_options: editResOptions,
+      mandatory_requirements: editResMandatoryRequirements,
     };
 
     // Supabase 실시간 저장 (연동 시)
@@ -449,6 +458,7 @@ export default function UnifiedPortal() {
             visit_time: editResVisitTime,
             visit_area: editResVisitArea,
             selected_options: editResOptions,
+            mandatory_requirements: editResMandatoryRequirements,
           })
           .eq("id", myReservationTarget.id);
 
@@ -469,6 +479,32 @@ export default function UnifiedPortal() {
     setIsEditingReservation(false);
     setEditResIsSaving(false);
     showToast("✅ 예약 정보가 수정되었습니다.");
+  };
+
+  const handleCancelReservation = async () => {
+    if (!myReservationTarget) return;
+
+    if (!confirm("정말로 이 예약을 취소하시겠습니까? 취소 후에는 복구할 수 없습니다.")) {
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from(RESERVATIONS_TABLE)
+          .delete()
+          .eq("id", myReservationTarget.id);
+
+        if (error) throw error;
+        showToast("✅ 예약이 정상적으로 취소 및 삭제되었습니다.");
+      } catch (err) {
+        showToast(`❌ 예약 취소 실패: ${err.message}`);
+        return;
+      }
+    }
+
+    setSitterReservations(prev => prev.filter(r => r.id !== myReservationTarget.id));
+    closeMyReservationModal();
   };
 
   // Sync selected time slot text to bookingTimeText
@@ -748,6 +784,18 @@ export default function UnifiedPortal() {
 
   // --- Supabase Realtime synchronization ---
   useEffect(() => {
+    // Restore simple login cache
+    const savedSimpleUser = localStorage.getItem("yenu_simple_user");
+    if (savedSimpleUser) {
+      try {
+        const parsed = JSON.parse(savedSimpleUser);
+        setIsLoggedIn(true);
+        setActiveUser(parsed);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     if (!isSupabaseConfigured) return;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -764,11 +812,14 @@ export default function UnifiedPortal() {
         fetchUserProfile(session.user.id);
         fetchSupabaseReservations();
       } else {
-        setIsLoggedIn(false);
-        setActiveUser(null);
-        fetchSupabasePosts();
-        fetchSupabaseJournals();
-        fetchSupabaseReservations();
+        const hasSimpleUser = localStorage.getItem("yenu_simple_user");
+        if (!hasSimpleUser) {
+          setIsLoggedIn(false);
+          setActiveUser(null);
+          fetchSupabasePosts();
+          fetchSupabaseJournals();
+          fetchSupabaseReservations();
+        }
       }
     });
 
@@ -995,7 +1046,134 @@ export default function UnifiedPortal() {
     }
   };
 
+  const triggerSmsNotification = async (reservationObj, totalPrice) => {
+    try {
+      const response = await fetch("/api/send-sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          to: reservationObj.phone,
+          petName: reservationObj.pet_name,
+          visitTime: reservationObj.visit_time,
+          totalPrice: totalPrice || reservationObj.total_price
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        console.log("SMS notification successfully triggered.", data);
+      } else {
+        console.warn("SMS sending bypassed or failed:", data.error || data.message);
+      }
+    } catch (e) {
+      console.error("Failed to trigger SMS API call:", e);
+    }
+  };
+
   // --- Authentication Handlers ---
+  const handleSimpleLogin = async (name, phone) => {
+    if (!name || !name.trim() || !phone || !phone.trim()) {
+      showToast("이름과 전화번호를 모두 입력해 주세요.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (cleanPhone.length < 9) {
+      showToast("올바른 전화번호를 입력해 주세요.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const email = `${cleanPhone}@yenu-simple.com`;
+
+    if (isSupabaseConfigured) {
+      try {
+        // 1. Supabase auth API 호출을 일절 배제하고, profiles 테이블을 직접 select로 조회
+        const { data: matchedProfiles, error: selectError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("full_name", name)
+          .eq("email", email);
+
+        if (selectError) {
+          throw selectError;
+        }
+
+        let userRecord = null;
+
+        if (matchedProfiles && matchedProfiles.length > 0) {
+          userRecord = matchedProfiles[0];
+          showToast(`'${name}'님 간편 로그인 성공!`);
+        } else {
+          // 테이블에 없다면 그 자리에서 insert로 이름과 전화번호 정보 추가
+          // profiles 테이블의 id 필드는 UUID 형식이므로, 안전한 임의 UUID를 생성합니다.
+          const dummyUuid = typeof crypto !== "undefined" && crypto.randomUUID 
+            ? crypto.randomUUID() 
+            : `00000000-0000-4000-a000-${cleanPhone.padEnd(12, "0")}`;
+
+          const newProfile = {
+            id: dummyUuid,
+            email: email,
+            username: `user_${cleanPhone}`,
+            full_name: name,
+            role: "member"
+          };
+
+          const { error: insertError } = await supabase
+            .from("profiles")
+            .insert([newProfile]);
+
+          if (insertError) {
+            console.warn("Profiles insert failed (possibly due to auth.users reference constraint), falling back to client session:", insertError);
+            // 외래키 혹은 RLS 제약조건 실패 시에도, 비회원 간편 로그인 세션은 정상 유지할 수 있도록 fall back
+          }
+          
+          userRecord = newProfile;
+          showToast(`'${name}'님 신규 등록 및 간편 로그인 완료!`);
+        }
+
+        // 3. 로컬 세션 강제 유지 및 모달 닫기
+        if (userRecord) {
+          setIsLoggedIn(true);
+          setActiveUser(userRecord);
+          localStorage.setItem("yenu_simple_user", JSON.stringify(userRecord));
+          
+          alert(`🎉 ${name} 집사님, 환영합니다!`);
+          setShowLoginModal(false);
+          fetchSupabaseReservations();
+        } else {
+          throw new Error("유저 정보를 연동하지 못했습니다.");
+        }
+      } catch (err) {
+        console.error("Simple login error details:", err);
+        alert(`로그인 처리 중 오류가 발생했습니다: ${err.message}`);
+        showToast(`❌ 간편 로그인 실패: ${err.message}`);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Mock / Demo Simulation Mode
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setIsLoggedIn(true);
+        const mockUser = {
+          id: `demo_${cleanPhone}`,
+          full_name: name,
+          email: email,
+          role: "member",
+          username: `user_${cleanPhone}`
+        };
+        setActiveUser(mockUser);
+        localStorage.setItem("yenu_simple_user", JSON.stringify(mockUser));
+        setShowLoginModal(false);
+        alert(`🎉 ${name} 집사님, 환영합니다! (시뮬레이션)`);
+        showToast(`[시뮬레이션] '${name}'님으로 간편 로그인 완료!`);
+      }, 800);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setIsSubmitting(true);
 
@@ -1029,6 +1207,7 @@ export default function UnifiedPortal() {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem("yenu_simple_user");
     if (isSupabaseConfigured) {
       await supabase.auth.signOut();
       setIsLoggedIn(false);
@@ -1069,6 +1248,308 @@ export default function UnifiedPortal() {
     }
 
     return days;
+  };
+
+  const getReservationCountForDate = (date) => {
+    if (!date) return 0;
+    const dateStr = date.toDateString();
+    return sitterReservations.filter(res => {
+      if (res.visit_date_string !== dateStr) return false;
+      const statusLower = (res.status || "").toLowerCase();
+      return statusLower === "예약대기" || statusLower === "confirmed" || statusLower === "예약확정";
+    }).length;
+  };
+
+  const isDateFullyBooked = (date) => {
+    if (!date) return false;
+    return getReservationCountForDate(date) >= 8;
+  };
+
+  const renderLeftCalendarColumn = () => {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
+        {/* 캘린더 그리드 */}
+        <div className="premium-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <h3 style={{ fontSize: "1.15rem", fontWeight: "800" }}>
+              📅 {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 돌봄 일정표
+            </h3>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>
+              * 오늘({new Date().getMonth() + 1}/{new Date().getDate()}) 이전 날짜 선택 불가
+            </span>
+          </div>
+
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
+            textAlign: "center", fontWeight: "700", fontSize: "0.8rem",
+            color: "var(--text-muted)", marginBottom: "10px"
+          }}>
+            {["일", "월", "화", "수", "목", "금", "토"].map(d => <span key={d}>{d}</span>)}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "clamp(3px, 1vw, 8px)" }}>
+            {calendarGridDays.map((dayObj, index) => {
+              const isSelected = selectedDate && dayObj.date && selectedDate.toDateString() === dayObj.date.toDateString();
+              const fullyBooked = dayObj.date ? isDateFullyBooked(dayObj.date) : false;
+              
+              return (
+                <button
+                  key={index}
+                  disabled={dayObj.isPast || !dayObj.day}
+                  onClick={() => selectBookingDate(dayObj)}
+                  style={{
+                    border: "none",
+                    borderRadius: "var(--border-radius-sm)",
+                    minHeight: "clamp(40px, 8vw, 56px)",
+                    height: "auto",
+                    padding: "clamp(4px, 1vw, 6px) clamp(1px, 0.5vw, 2px)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "clamp(0.75rem, 1.8vw, 0.95rem)",
+                    fontWeight: "700",
+                    cursor: (dayObj.isPast || !dayObj.day) ? "not-allowed" : "pointer",
+                    backgroundColor: isSelected 
+                      ? "var(--primary-orange)" 
+                      : (fullyBooked 
+                          ? "#e5e7eb" 
+                          : ((dayObj.isPast || !dayObj.day) ? "var(--bg-primary)" : "var(--bg-secondary)")),
+                    color: isSelected 
+                      ? "white" 
+                      : (fullyBooked 
+                          ? "#9ca3af" 
+                          : ((dayObj.isPast || !dayObj.day) ? "var(--text-muted)" : "var(--text-main)")),
+                    opacity: dayObj.isPast ? 0.35 : 1,
+                    transition: "var(--transition-fast)",
+                    boxShadow: isSelected ? "0 4px 10px rgba(255, 112, 67, 0.25)" : "none"
+                  }}
+                >
+                  <span>{dayObj.day}</span>
+                  {dayObj.date && dayObj.date.toDateString() === new Date().toDateString() && !fullyBooked && (
+                    <span style={{ fontSize: "0.6rem", color: isSelected ? "white" : "var(--primary-orange)", marginBottom: "2px" }}>오늘</span>
+                  )}
+                  {fullyBooked && (
+                    <span style={{ fontSize: "0.65rem", color: "#ef4444", fontWeight: "800", marginTop: "2px" }}>마감</span>
+                  )}
+                  {/* Display reservation badge(s) */}
+                  {dayObj.date && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", marginTop: "2px" }}>
+                      {sitterReservations
+                        .filter(res => res.visit_date_string === dayObj.date.toDateString())
+                        .filter(res => {
+                          // 보안 필터: 시터/관리자는 모든 예약을 조회 가능
+                          if (activeUser && (activeUser.role === "sitter" || activeUser.role === "admin")) {
+                            return true;
+                          }
+                          // 일반 보호자는 오직 본인 예약만 조회 가능
+                          if (!isLoggedIn || !activeUser) return false;
+                          
+                          const userPhoneClean = activeUser.email?.includes("@yenu-simple.com")
+                            ? activeUser.email.split("@")[0]
+                            : "";
+                          const resPhoneClean = (res.phone || "").replace(/[^0-9]/g, "");
+
+                          return res.user_id === activeUser.id || 
+                                 res.client_name === activeUser.full_name || 
+                                 (userPhoneClean && resPhoneClean === userPhoneClean);
+                        })
+                        .map((res, i) => {
+                          const userPhoneClean = activeUser.email?.includes("@yenu-simple.com")
+                            ? activeUser.email.split("@")[0]
+                            : "";
+                          const resPhoneClean = (res.phone || "").replace(/[^0-9]/g, "");
+
+                          const isMyReservation = isLoggedIn && activeUser && (
+                            res.user_id === activeUser.id ||
+                            res.client_name === activeUser.full_name ||
+                            (userPhoneClean && resPhoneClean === userPhoneClean)
+                          );
+
+                          // Determine colors and label based on status
+                          let bgStyle = "var(--primary-orange-light)";
+                          let textStyle = "var(--primary-orange)";
+                          let borderStyle = "none";
+                          let labelPrefix = "📅";
+
+                          const statusLower = (res.status || "").toLowerCase();
+                          if (statusLower === "예약대기") {
+                            bgStyle = "hsl(35, 100%, 94%)"; // 연한 주황/노랑 계열
+                            textStyle = "hsl(35, 95%, 45%)";
+                            borderStyle = "1px solid hsl(35, 90%, 80%)";
+                            labelPrefix = "🕒 [대기]";
+                          } else if (statusLower === "confirmed" || statusLower === "예약확정") {
+                            bgStyle = "var(--success-mint-light)"; // 연한 초록 계열
+                            textStyle = "var(--success-mint)";
+                            borderStyle = "1px solid hsl(150, 40%, 85%)";
+                            labelPrefix = "✅ [확정]";
+                          } else if (statusLower === "started") {
+                            bgStyle = "var(--warning-coral-light)";
+                            textStyle = "var(--warning-coral)";
+                            borderStyle = "1px solid hsl(12, 85%, 90%)";
+                            labelPrefix = "🟢 [돌봄중]";
+                          } else if (statusLower === "completed") {
+                            bgStyle = "#f1f5f9";
+                            textStyle = "var(--text-muted)";
+                            borderStyle = "1px solid #e2e8f0";
+                            labelPrefix = "🏁 [완료]";
+                          }
+
+                          // Override when the day cell itself is selected
+                          if (isSelected) {
+                            bgStyle = "rgba(255, 255, 255, 0.9)";
+                            textStyle = "var(--primary-orange)";
+                            borderStyle = "1px solid rgba(255, 255, 255, 0.9)";
+                          }
+
+                          return (
+                            <span
+                              key={i}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isMyReservation) {
+                                  openMyReservationModal(res);
+                                }
+                              }}
+                              title={isMyReservation ? "클릭하여 내 예약 상세보기/수정" : `${labelPrefix} ${res.pet_name}`}
+                              style={{
+                                fontSize: "0.65rem",
+                                backgroundColor: bgStyle,
+                                color: textStyle,
+                                border: borderStyle,
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                fontWeight: "800",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: "95%",
+                                display: "block",
+                                cursor: isMyReservation ? "pointer" : "default",
+                                marginTop: "3px",
+                                transition: "all 0.15s ease"
+                              }}
+                            >
+                              {labelPrefix} {res.pet_name}
+                            </span>
+                          );
+                        })}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── 내 예약 현황 카드 (로그인한 보호자 전용) ── */}
+        {isLoggedIn && activeUser && (() => {
+          const myReservations = sitterReservations.filter(res => {
+            const userPhoneClean = activeUser.email?.includes("@yenu-simple.com")
+              ? activeUser.email.split("@")[0]
+              : "";
+            const resPhoneClean = (res.phone || "").replace(/[^0-9]/g, "");
+            
+            return res.user_id === activeUser.id || 
+                   res.client_name === activeUser.full_name || 
+                   (userPhoneClean && resPhoneClean === userPhoneClean);
+          });
+          if (myReservations.length === 0) return null;
+          return (
+            <div className="premium-card animate-fade-in" style={{
+              border: "2px solid var(--success-mint)",
+              backgroundColor: "var(--success-mint-light)",
+            }}>
+              <h4 style={{ fontSize: "1rem", fontWeight: "800", color: "var(--success-mint)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                📋 내 예약 현황
+                <span style={{ fontSize: "0.75rem", backgroundColor: "var(--success-mint)", color: "white", padding: "2px 8px", borderRadius: "12px" }}>
+                  {myReservations.length}건
+                </span>
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {myReservations.map((res) => (
+                  <div
+                    key={res.id}
+                    onClick={() => openMyReservationModal(res)}
+                    style={{
+                      backgroundColor: "white",
+                      border: "1.5px solid var(--success-mint)",
+                      borderRadius: "var(--border-radius-sm)",
+                      padding: "14px 16px",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "12px",
+                      transition: "var(--transition-fast)",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(38,198,145,0.18)"}
+                    onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: "800", fontSize: "0.9rem", color: "var(--text-main)", marginBottom: "4px" }}>
+                        🐾 {res.pet_name}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                        📍 {res.visit_area} &nbsp;|&nbsp; ⏰ {res.visit_time}
+                      </div>
+                      {res.selected_options && res.selected_options.length > 0 && (
+                        <div style={{ fontSize: "0.72rem", color: "var(--success-mint)", marginTop: "4px", fontWeight: "700" }}>
+                          ＋ {res.selected_options.join(", ")}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: "1.1rem", fontWeight: "900", color: "var(--primary-orange)" }}>
+                        {(res.total_price || 0).toLocaleString()}원
+                      </div>
+                      <div style={{ 
+                        fontSize: "0.7rem", 
+                        backgroundColor: res.status === "started" 
+                          ? "var(--warning-coral-light)" 
+                          : res.status === "예약대기"
+                            ? "var(--primary-orange-light)"
+                            : "var(--success-mint-light)", 
+                        color: res.status === "started" 
+                          ? "var(--warning-coral)" 
+                          : res.status === "예약대기"
+                            ? "var(--primary-orange)"
+                            : "var(--success-mint)", 
+                        padding: "2px 8px", 
+                        borderRadius: "10px", 
+                        fontWeight: "700", 
+                        marginTop: "4px" 
+                      }}>
+                        {res.status === "started" 
+                          ? "돌봄 중 🟢" 
+                          : res.status === "예약대기"
+                            ? "예약 대기 ⏳"
+                            : "예약 확정 ✅"}
+                      </div>
+                      <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                        클릭하여 상세보기/수정
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {bookingType === "multi" && (
+          <div className="premium-card animate-fade-in" style={{ backgroundColor: "var(--primary-orange-light)", border: "1.5px solid var(--primary-orange)" }}>
+            <h4 style={{ fontSize: "1rem", fontWeight: "800", marginBottom: "8px", color: "var(--primary-orange)" }}>
+              📅 여러 날 신청 진행 중
+            </h4>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-main)", lineHeight: "1.5", margin: 0, fontWeight: "500" }}>
+              여러 날 예약을 신청하실 때는 개별 타임슬롯을 선택하지 않습니다. <br />
+              우측 입력 폼에서 <strong>원하시는 시작일/종료일 및 구체적인 시간대</strong>를 기재해 주시면 펫시터가 조율을 진행합니다.
+            </p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const selectBookingDate = (dayObj) => {
@@ -1315,7 +1796,7 @@ export default function UnifiedPortal() {
 
         return {
           id: Date.now() + idx,
-          user_id: activeUser ? activeUser.id : null,
+          user_id: activeUser && !String(activeUser.id).startsWith("simple_") && !String(activeUser.id).startsWith("demo_") ? activeUser.id : null,
           customer_id: newCustId,
           client_name: activeUser ? activeUser.full_name : "보호자 회원",
           pet_name: petName,
@@ -1438,10 +1919,10 @@ export default function UnifiedPortal() {
       const orderId = `order_${Date.now()}`;
       const manualPaymentKey = `manual_${paymentMethod}_${Date.now()}`;
       
-      // Update reservations array status to '입금대기'
+      // Update reservations array status to '예약대기'
       const reservationsWithStatus = tempBookingData.reservations.map(res => ({
         ...res,
-        status: "입금대기",
+        status: "예약대기",
         payment_method: paymentMethod === "bank" ? "무통장" : "제로페이"
       }));
 
@@ -1463,9 +1944,19 @@ export default function UnifiedPortal() {
             if (retryError) throw retryError;
           }
           showToast("✅ 예약 신청 정보가 Supabase에 정상 등록되었습니다.");
+
+          // 예약 접수 자동 문자 발송 API 호출
+          if (reservationsWithStatus && reservationsWithStatus.length > 0) {
+            triggerSmsNotification(reservationsWithStatus[0], bookingSummary.totalPrice);
+          }
         } catch (dbErr) {
           console.error("Supabase insert failed for manual payment:", dbErr);
           showToast("⚠️ Supabase 저장 실패 (로컬 메모리에 임시 저장됩니다): " + dbErr.message);
+        }
+      } else {
+        // 로컬 시뮬레이션 모드에서도 문자 발송 API 호출 테스트 지원
+        if (reservationsWithStatus && reservationsWithStatus.length > 0) {
+          triggerSmsNotification(reservationsWithStatus[0], bookingSummary.totalPrice);
         }
       }
 
@@ -2235,6 +2726,7 @@ export default function UnifiedPortal() {
                   { icon: "💰", label: "총 요금", value: `${(myReservationTarget.total_price || 0).toLocaleString()}원` },
                   { icon: "🐾", label: "반려동물", value: myReservationTarget.pet_name },
                   { icon: "👤", label: "보호자명", value: myReservationTarget.client_name },
+                  { icon: "✨", label: "요청 사항", value: myReservationTarget.mandatory_requirements },
                 ].map(row => (
                   <div key={row.label} style={{ display: "flex", gap: "12px", padding: "12px 16px", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", alignItems: "flex-start" }}>
                     <span style={{ fontSize: "1rem", flexShrink: 0 }}>{row.icon}</span>
@@ -2268,27 +2760,50 @@ export default function UnifiedPortal() {
                   </span>
                 </div>
 
-                {/* 수정 버튼 (돌봄 중이 아닐 때만) */}
-                <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                  {myReservationTarget.status !== "started" && (
-                    <button
-                      onClick={() => setIsEditingReservation(true)}
-                      style={{
-                        flex: 1, padding: "14px", fontSize: "0.95rem", fontWeight: "800",
-                        backgroundColor: "var(--primary-orange)", color: "white",
-                        border: "none", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
-                        transition: "var(--transition-fast)",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)"}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "var(--primary-orange)"}
-                    >
-                      ✏️ 예약 내용 수정
-                    </button>
-                  )}
+                {/* 수정 및 취소 버튼 (돌봄 중/완료가 아닐 때만) */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    {myReservationTarget.status !== "started" && myReservationTarget.status !== "completed" && (
+                      <>
+                        <button
+                          onClick={() => setIsEditingReservation(true)}
+                          style={{
+                            flex: 1, padding: "14px", fontSize: "0.92rem", fontWeight: "800",
+                            backgroundColor: "var(--primary-orange)", color: "white",
+                            border: "none", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
+                            transition: "var(--transition-fast)",
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)"}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = "var(--primary-orange)"}
+                        >
+                          ✏️ 돌봄 정보 수정하기
+                        </button>
+                        <button
+                          onClick={handleCancelReservation}
+                          style={{
+                            flex: 1, padding: "14px", fontSize: "0.92rem", fontWeight: "800",
+                            backgroundColor: "var(--warning-coral-light)", color: "var(--warning-coral)",
+                            border: "1.5px solid var(--warning-coral)", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
+                            transition: "var(--transition-fast)",
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = "var(--warning-coral)";
+                            e.currentTarget.style.color = "white";
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = "var(--warning-coral-light)";
+                            e.currentTarget.style.color = "var(--warning-coral)";
+                          }}
+                        >
+                          ❌ 예약 취소하기
+                        </button>
+                      </>
+                    )}
+                  </div>
                   <button
                     onClick={closeMyReservationModal}
                     style={{
-                      flex: 1, padding: "14px", fontSize: "0.95rem", fontWeight: "800",
+                      width: "100%", padding: "14px", fontSize: "0.95rem", fontWeight: "800",
                       backgroundColor: "var(--bg-secondary)", color: "var(--text-main)",
                       border: "1.5px solid var(--border-light)", borderRadius: "var(--border-radius-sm)", cursor: "pointer",
                     }}
@@ -2314,6 +2829,18 @@ export default function UnifiedPortal() {
                     value={editResVisitTime}
                     onChange={e => setEditResVisitTime(e.target.value)}
                     placeholder="예: 6월 15일 오후 2시~2시 30분"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">✨ 기타 요청 사항 (선호 시간 및 요청 메모)</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    value={editResMandatoryRequirements}
+                    onChange={e => setEditResMandatoryRequirements(e.target.value)}
+                    placeholder="예: 사료 급여나 조율 사항을 자유롭게 적어주세요."
+                    style={{ resize: "vertical", fontFamily: "inherit" }}
                   />
                 </div>
 
@@ -2402,7 +2929,7 @@ export default function UnifiedPortal() {
           justifyContent: "center", zIndex: 1000, backdropFilter: "blur(6px)"
         }}>
           <div className="premium-card animate-fade-in" style={{ 
-            maxWidth: "440px", 
+            maxWidth: "460px", 
             width: "90%", 
             padding: "40px 32px",
             backgroundColor: "white",
@@ -2411,7 +2938,7 @@ export default function UnifiedPortal() {
             border: "1px solid var(--border-light)",
             textAlign: "center"
           }}>
-            <div style={{ position: "relative", marginBottom: "28px" }}>
+            <div style={{ position: "relative", marginBottom: "24px" }}>
               <button 
                 onClick={() => setShowLoginModal(false)}
                 style={{
@@ -2432,158 +2959,280 @@ export default function UnifiedPortal() {
               </button>
               
               <div style={{
-                width: "60px",
-                height: "60px",
+                width: "56px",
+                height: "56px",
                 borderRadius: "50%",
                 backgroundColor: "var(--primary-orange-light)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                margin: "0 auto 16px"
+                margin: "0 auto 12px"
               }}>
-                <span style={{ fontSize: "1.8rem" }}>🔐</span>
+                <span style={{ fontSize: "1.6rem" }}>🔐</span>
               </div>
-              <h3 style={{ fontSize: "1.4rem", color: "var(--text-main)", fontWeight: "800", margin: "0 0 6px" }}>
+              <h3 style={{ fontSize: "1.35rem", color: "var(--text-main)", fontWeight: "800", margin: "0 0 4px" }}>
                 윤교품애 인증 센터
               </h3>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
-                {isSupabaseConfigured 
-                  ? "안전한 Google 원클릭 로그인을 지원합니다." 
-                  : "현재 데모 시뮬레이션 모드로 가동 중입니다."}
+              <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>
+                보호자님의 편리한 예약 관리를 지원합니다. ✨
               </p>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Google Login Button */}
+            {/* 탭 헤더 */}
+            <div style={{
+              display: "flex",
+              backgroundColor: "var(--bg-secondary)",
+              padding: "4px",
+              borderRadius: "var(--border-radius-sm)",
+              marginBottom: "24px",
+              border: "1.5px solid var(--border-light)"
+            }}>
               <button
                 type="button"
-                onClick={handleGoogleLogin}
-                disabled={isSubmitting}
+                onClick={() => setActiveLoginTab("client")}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "12px",
-                  width: "100%",
-                  padding: "14px 20px",
-                  backgroundColor: "white",
-                  color: "#3c4043",
-                  border: "1.5px solid var(--border-light)",
-                  borderRadius: "var(--border-radius-md)",
-                  fontSize: "0.95rem",
-                  fontWeight: "700",
-                  cursor: isSubmitting ? "not-allowed" : "pointer",
-                  transition: "all 0.2s ease-in-out",
-                  boxShadow: "var(--shadow-sm)"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--bg-primary)";
-                  e.currentTarget.style.borderColor = "var(--text-muted)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "white";
-                  e.currentTarget.style.borderColor = "var(--border-light)";
+                  flex: 1,
+                  padding: "10px",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                  fontWeight: "800",
+                  cursor: "pointer",
+                  backgroundColor: activeLoginTab === "client" ? "white" : "transparent",
+                  color: activeLoginTab === "client" ? "var(--primary-orange)" : "var(--text-muted)",
+                  boxShadow: activeLoginTab === "client" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+                  transition: "all 0.15s ease"
                 }}
               >
-                {isSubmitting ? (
-                  <span>로그인 진행 중...</span>
-                ) : (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.53-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-8.81z"/>
-                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.74-2.11-6.68-4.96H1.21v3.15C3.18 21.88 7.39 24 12 24z"/>
-                      <path fill="#FBBC05" d="M5.32 14.24c-.24-.72-.38-1.5-.38-2.3s.14-1.58.38-2.3V6.49H1.21C.44 8.04 0 9.77 0 11.62s.44 3.58 1.21 5.13l4.11-3.15C5.18 15.1 5.25 14.66 5.32 14.24z"/>
-                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.39 0 3.18 2.12 1.21 5.62l4.11 3.15c.94-2.85 3.57-4.96 6.68-4.96z"/>
-                    </svg>
-                    <span>Google 계정으로 로그인</span>
-                  </>
-                )}
+                👤 집사님 간편로그인
               </button>
-
-              {/* Demo Mode Role Switcher */}
-              {!isSupabaseConfigured ? (
-                <div style={{ 
-                  marginTop: "16px", 
-                  padding: "16px 20px", 
-                  backgroundColor: "var(--bg-primary)", 
-                  borderRadius: "var(--border-radius-md)",
-                  border: "1px solid var(--border-light)",
-                  textAlign: "left"
-                }}>
-                  <label className="form-label" style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
-                    ⚙️ 시뮬레이션 로그인 역할 선택
-                  </label>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole("member")}
-                      style={{
-                        flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
-                        borderRadius: "var(--border-radius-sm)",
-                        backgroundColor: selectedRole === "member" ? "var(--primary-orange-light)" : "white",
-                        borderColor: selectedRole === "member" ? "var(--primary-orange)" : "var(--border-light)",
-                        color: selectedRole === "member" ? "var(--primary-orange)" : "var(--text-muted)",
-                        fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
-                      }}
-                    >
-                      👤 일반 회원 (Member)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole("sitter")}
-                      style={{
-                        flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
-                        borderRadius: "var(--border-radius-sm)",
-                        backgroundColor: selectedRole === "sitter" ? "var(--primary-orange-light)" : "white",
-                        borderColor: selectedRole === "sitter" ? "var(--primary-orange)" : "var(--border-light)",
-                        color: selectedRole === "sitter" ? "var(--primary-orange)" : "var(--text-muted)",
-                        fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
-                      }}
-                    >
-                      ⚡ 펫시터 (Sitter)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole("admin")}
-                      style={{
-                        flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
-                        borderRadius: "var(--border-radius-sm)",
-                        backgroundColor: selectedRole === "admin" ? "var(--primary-orange-light)" : "white",
-                        borderColor: selectedRole === "admin" ? "var(--primary-orange)" : "var(--border-light)",
-                        color: selectedRole === "admin" ? "var(--primary-orange)" : "var(--text-muted)",
-                        fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
-                      }}
-                    >
-                      👑 관리자 (Admin)
-                    </button>
-                  </div>
-                  <span style={{ display: "block", fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "8px", lineHeight: "1.3" }}>
-                    * 로컬 환경 시뮬레이션 로그인입니다. 선택한 역할로 Google 로그인이 시뮬레이션됩니다.
-                  </span>
-                </div>
-              ) : (
-                <div style={{ 
-                  marginTop: "16px", 
-                  padding: "16px 20px", 
-                  backgroundColor: "var(--bg-primary)", 
-                  borderRadius: "var(--border-radius-md)",
-                  border: "1px solid var(--border-light)",
-                  textAlign: "left"
-                }}>
-                  <span style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: "1.4" }}>
-                    💡 <strong>관리자(admin) 권한 테스트 안내:</strong><br />
-                    실제 Google 로그인 시 <code>sitter@yenu.com</code> 이메일 계정으로 접속하시면 펫시터 관리자 모드가 활성화됩니다.
-                  </span>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setActiveLoginTab("admin")}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "0.85rem",
+                  fontWeight: "800",
+                  cursor: "pointer",
+                  backgroundColor: activeLoginTab === "admin" ? "white" : "transparent",
+                  color: activeLoginTab === "admin" ? "var(--primary-orange)" : "var(--text-muted)",
+                  boxShadow: activeLoginTab === "admin" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                👑 관리자 로그인
+              </button>
             </div>
 
-            <div style={{ marginTop: "24px", display: "flex", justifyContent: "center" }}>
+            {/* 탭 내용 분기 */}
+            {activeLoginTab === "client" ? (
+              /* [집사님 간편로그인 탭] */
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px", textAlign: "left" }}>
+                <div style={{
+                  padding: "10px 14px",
+                  backgroundColor: "var(--primary-orange-light)",
+                  borderRadius: "var(--border-radius-sm)",
+                  fontSize: "0.78rem",
+                  color: "var(--primary-orange)",
+                  fontWeight: "750",
+                  lineHeight: "1.4"
+                }}>
+                  💡 별도의 가입 없이, 이름과 전화번호만으로 즉시 예약 상황을 확인 및 관리하실 수 있습니다!
+                </div>
+                
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--text-main)", marginBottom: "6px", display: "block" }}>
+                    이름
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={simpleLoginName}
+                    onChange={(e) => setSimpleLoginName(e.target.value)}
+                    placeholder="홍길동"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--text-main)", marginBottom: "6px", display: "block" }}>
+                    전화번호
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={simpleLoginPhone}
+                    onChange={(e) => setSimpleLoginPhone(e.target.value)}
+                    placeholder="01012345678"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleSimpleLogin(simpleLoginName, simpleLoginPhone)}
+                  disabled={isSubmitting}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "var(--primary-orange)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "var(--border-radius-sm)",
+                    fontSize: "0.95rem",
+                    fontWeight: "800",
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                    transition: "var(--transition-fast)",
+                    marginTop: "8px",
+                    boxShadow: "0 4px 12px rgba(255, 112, 67, 0.2)"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "var(--primary-orange)"}
+                >
+                  {isSubmitting ? "간편 로그인 중..." : "🚀 1초 만에 간편 로그인/조회"}
+                </button>
+              </div>
+            ) : (
+              /* [관리자 로그인 탭] */
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: "4px 0 8px", lineHeight: "1.4" }}>
+                  관리자 및 펫시터용 구글 원클릭 로그인 채널입니다.
+                </p>
+
+                {/* Google Login Button */}
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={isSubmitting}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "12px",
+                    width: "100%",
+                    padding: "14px 20px",
+                    backgroundColor: "white",
+                    color: "#3c4043",
+                    border: "1.5px solid var(--border-light)",
+                    borderRadius: "var(--border-radius-md)",
+                    fontSize: "0.95rem",
+                    fontWeight: "700",
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                    transition: "all 0.2s ease-in-out",
+                    boxShadow: "var(--shadow-sm)"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--bg-primary)";
+                    e.currentTarget.style.borderColor = "var(--text-muted)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "white";
+                    e.currentTarget.style.borderColor = "var(--border-light)";
+                  }}
+                >
+                  {isSubmitting ? (
+                    <span>로그인 진행 중...</span>
+                  ) : (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.53-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-8.81z"/>
+                        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.74-2.11-6.68-4.96H1.21v3.15C3.18 21.88 7.39 24 12 24z"/>
+                        <path fill="#FBBC05" d="M5.32 14.24c-.24-.72-.38-1.5-.38-2.3s.14-1.58.38-2.3V6.49H1.21C.44 8.04 0 9.77 0 11.62s.44 3.58 1.21 5.13l4.11-3.15C5.18 15.1 5.25 14.66 5.32 14.24z"/>
+                        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.39 0 3.18 2.12 1.21 5.62l4.11 3.15c.94-2.85 3.57-4.96 6.68-4.96z"/>
+                      </svg>
+                      <span>Google 계정으로 로그인</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Demo Mode Role Switcher */}
+                {!isSupabaseConfigured ? (
+                  <div style={{ 
+                    marginTop: "16px", 
+                    padding: "16px 20px", 
+                    backgroundColor: "var(--bg-primary)", 
+                    borderRadius: "var(--border-radius-md)",
+                    border: "1px solid var(--border-light)",
+                    textAlign: "left"
+                  }}>
+                    <label className="form-label" style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-main)", display: "block", marginBottom: "8px" }}>
+                      ⚙️ 시뮬레이션 로그인 역할 선택
+                    </label>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole("member")}
+                        style={{
+                          flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
+                          borderRadius: "var(--border-radius-sm)",
+                          backgroundColor: selectedRole === "member" ? "var(--primary-orange-light)" : "white",
+                          borderColor: selectedRole === "member" ? "var(--primary-orange)" : "var(--border-light)",
+                          color: selectedRole === "member" ? "var(--primary-orange)" : "var(--text-muted)",
+                          fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
+                        }}
+                      >
+                        👤 일반 회원 (Member)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole("sitter")}
+                        style={{
+                          flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
+                          borderRadius: "var(--border-radius-sm)",
+                          backgroundColor: selectedRole === "sitter" ? "var(--primary-orange-light)" : "white",
+                          borderColor: selectedRole === "sitter" ? "var(--primary-orange)" : "var(--border-light)",
+                          color: selectedRole === "sitter" ? "var(--primary-orange)" : "var(--text-muted)",
+                          fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
+                        }}
+                      >
+                        ⚡ 펫시터 (Sitter)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole("admin")}
+                        style={{
+                          flex: 1, padding: "10px", border: "1.5px solid var(--border-light)",
+                          borderRadius: "var(--border-radius-sm)",
+                          backgroundColor: selectedRole === "admin" ? "var(--primary-orange-light)" : "white",
+                          borderColor: selectedRole === "admin" ? "var(--primary-orange)" : "var(--border-light)",
+                          color: selectedRole === "admin" ? "var(--primary-orange)" : "var(--text-muted)",
+                          fontWeight: "700", cursor: "pointer", fontSize: "0.8rem"
+                        }}
+                      >
+                        👑 관리자 (Admin)
+                      </button>
+                    </div>
+                    <span style={{ display: "block", fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "8px", lineHeight: "1.3" }}>
+                      * 로컬 환경 시뮬레이션 로그인입니다. 선택한 역할로 Google 로그인이 시뮬레이션됩니다.
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ 
+                    marginTop: "16px", 
+                    padding: "16px 20px", 
+                    backgroundColor: "var(--bg-primary)", 
+                    borderRadius: "var(--border-radius-md)",
+                    border: "1px solid var(--border-light)",
+                    textAlign: "left"
+                  }}>
+                    <span style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                      💡 <strong>관리자(admin) 권한 테스트 안내:</strong><br />
+                      실제 Google 로그인 시 <code>sitter@yenu.com</code> 이메일 계정으로 접속하시면 펫시터 관리자 모드가 활성화됩니다.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ marginTop: "28px", display: "flex", justifyContent: "center" }}>
               <button 
                 type="button" 
                 className="btn btn-secondary" 
                 onClick={() => setShowLoginModal(false)} 
-                style={{ width: "100%", padding: "10px" }}
+                style={{ width: "100%", padding: "12px", fontWeight: "800" }}
               >
                 닫기
               </button>
@@ -4105,6 +4754,8 @@ export default function UnifiedPortal() {
                 </div>
 
                 <PricingSection 
+                  leftContent={renderLeftCalendarColumn()}
+                  isFullyBooked={selectedDate ? isDateFullyBooked(selectedDate) : false}
                   onBookingClick={handleGoToBooking}
                   days={calculatorDays}
                   setDays={handleCalculatorDaysChange}
@@ -4171,206 +4822,15 @@ export default function UnifiedPortal() {
                   </p>
                 </div>
 
-                <div id="booking-form-start" style={{ display: "flex", flexWrap: "wrap", gap: "32px", alignItems: "flex-start" }}>
+                <div id="booking-form-start" className="pricing-grid-container">
               
               {/* Left Column: Calendar & Times */}
-              <div style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "24px" }}>
-                
-                {/* 캘린더 그리드 */}
-                <div className="premium-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                    <h3 style={{ fontSize: "1.15rem", fontWeight: "800" }}>
-                      📅 {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 돌봄 일정표
-                    </h3>
-                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>
-                      * 오늘({new Date().getMonth() + 1}/{new Date().getDate()}) 이전 날짜 선택 불가
-                    </span>
-                  </div>
-
-                  <div style={{
-                    display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
-                    textAlign: "center", fontWeight: "700", fontSize: "0.8rem",
-                    color: "var(--text-muted)", marginBottom: "10px"
-                  }}>
-                    {["일", "월", "화", "수", "목", "금", "토"].map(d => <span key={d}>{d}</span>)}
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "clamp(3px, 1vw, 8px)" }}>
-                    {calendarGridDays.map((dayObj, index) => {
-                      const isSelected = selectedDate && dayObj.date && selectedDate.toDateString() === dayObj.date.toDateString();
-                      
-                      return (
-                        <button
-                          key={index}
-                          disabled={dayObj.isPast || !dayObj.day}
-                          onClick={() => selectBookingDate(dayObj)}
-                          style={{
-                            border: "none",
-                            borderRadius: "var(--border-radius-sm)",
-                            minHeight: "clamp(40px, 8vw, 56px)",
-                            height: "auto",
-                            padding: "clamp(4px, 1vw, 6px) clamp(1px, 0.5vw, 2px)",
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "clamp(0.75rem, 1.8vw, 0.95rem)",
-                            fontWeight: "700",
-                            cursor: (dayObj.isPast || !dayObj.day) ? "not-allowed" : "pointer",
-                            backgroundColor: isSelected 
-                              ? "var(--primary-orange)" 
-                              : (dayObj.isPast || !dayObj.day) ? "var(--bg-primary)" : "var(--bg-secondary)",
-                            color: isSelected 
-                              ? "white" 
-                              : (dayObj.isPast || !dayObj.day) ? "var(--text-muted)" : "var(--text-main)",
-                            opacity: dayObj.isPast ? 0.35 : 1,
-                            transition: "var(--transition-fast)",
-                            boxShadow: isSelected ? "0 4px 10px rgba(255, 112, 67, 0.25)" : "none"
-                          }}
-                        >
-                          <span>{dayObj.day}</span>
-                          {dayObj.date && dayObj.date.toDateString() === new Date().toDateString() && (
-                            <span style={{ fontSize: "0.6rem", color: isSelected ? "white" : "var(--primary-orange)", marginBottom: "2px" }}>오늘</span>
-                          )}
-                          {/* Display reservation badge(s) */}
-                          {dayObj.date && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", marginTop: "2px" }}>
-                              {sitterReservations
-                                .filter(res => res.visit_date_string === dayObj.date.toDateString())
-                                .map((res, i) => {
-                                  const isMyReservation = isLoggedIn && activeUser && (
-                                    res.client_name === activeUser.full_name ||
-                                    res.phone === activeUser.phone
-                                  );
-                                  return (
-                                    <span
-                                      key={i}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (isMyReservation) {
-                                          openMyReservationModal(res);
-                                        }
-                                      }}
-                                      title={isMyReservation ? "클릭하여 내 예약 상세보기/수정" : res.pet_name}
-                                      style={{
-                                        fontSize: "0.6rem",
-                                        backgroundColor: isMyReservation
-                                          ? "var(--success-mint-light)"
-                                          : (isSelected ? "rgba(255, 255, 255, 0.25)" : "var(--primary-orange-light)"),
-                                        color: isMyReservation
-                                          ? "var(--success-mint)"
-                                          : (isSelected ? "white" : "var(--primary-orange)"),
-                                        border: isMyReservation ? "1px solid var(--success-mint)" : "none",
-                                        padding: "1px 4px",
-                                        borderRadius: "4px",
-                                        fontWeight: "800",
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        maxWidth: "90%",
-                                        display: "block",
-                                        cursor: isMyReservation ? "pointer" : "default",
-                                      }}
-                                    >
-                                      {isMyReservation ? "✅" : "🐾"} {res.pet_name}
-                                    </span>
-                                  );
-                                })}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* ── 내 예약 현황 카드 (로그인한 보호자 전용) ── */}
-                {isLoggedIn && activeUser && (() => {
-                  const myReservations = sitterReservations.filter(res =>
-                    res.client_name === activeUser.full_name ||
-                    res.phone === activeUser.phone
-                  );
-                  if (myReservations.length === 0) return null;
-                  return (
-                    <div className="premium-card animate-fade-in" style={{
-                      border: "2px solid var(--success-mint)",
-                      backgroundColor: "var(--success-mint-light)",
-                    }}>
-                      <h4 style={{ fontSize: "1rem", fontWeight: "800", color: "var(--success-mint)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                        📋 내 예약 현황
-                        <span style={{ fontSize: "0.75rem", backgroundColor: "var(--success-mint)", color: "white", padding: "2px 8px", borderRadius: "12px" }}>
-                          {myReservations.length}건
-                        </span>
-                      </h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {myReservations.map((res) => (
-                          <div
-                            key={res.id}
-                            onClick={() => openMyReservationModal(res)}
-                            style={{
-                              backgroundColor: "white",
-                              border: "1.5px solid var(--success-mint)",
-                              borderRadius: "var(--border-radius-sm)",
-                              padding: "14px 16px",
-                              cursor: "pointer",
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              gap: "12px",
-                              transition: "var(--transition-fast)",
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(38,198,145,0.18)"}
-                            onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: "800", fontSize: "0.9rem", color: "var(--text-main)", marginBottom: "4px" }}>
-                                🐾 {res.pet_name}
-                              </div>
-                              <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                                📍 {res.visit_area} &nbsp;|&nbsp; ⏰ {res.visit_time}
-                              </div>
-                              {res.selected_options && res.selected_options.length > 0 && (
-                                <div style={{ fontSize: "0.72rem", color: "var(--success-mint)", marginTop: "4px", fontWeight: "700" }}>
-                                  ＋ {res.selected_options.join(", ")}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ textAlign: "right", flexShrink: 0 }}>
-                              <div style={{ fontSize: "1.1rem", fontWeight: "900", color: "var(--primary-orange)" }}>
-                                {(res.total_price || 0).toLocaleString()}원
-                              </div>
-                              <div style={{ fontSize: "0.7rem", backgroundColor: res.status === "started" ? "var(--warning-coral-light)" : "var(--success-mint-light)", color: res.status === "started" ? "var(--warning-coral)" : "var(--success-mint)", padding: "2px 8px", borderRadius: "10px", fontWeight: "700", marginTop: "4px" }}>
-                                {res.status === "started" ? "돌봄 중 🟢" : "예약 확정 ✅"}
-                              </div>
-                              <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                                클릭하여 상세보기/수정
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-
-
-                {bookingType === "multi" && (
-                  <div className="premium-card animate-fade-in" style={{ backgroundColor: "var(--primary-orange-light)", border: "1.5px solid var(--primary-orange)" }}>
-                    <h4 style={{ fontSize: "1rem", fontWeight: "800", marginBottom: "8px", color: "var(--primary-orange)" }}>
-                      📅 여러 날 신청 진행 중
-                    </h4>
-                    <p style={{ fontSize: "0.85rem", color: "var(--text-main)", lineHeight: "1.5", margin: 0, fontWeight: "500" }}>
-                      여러 날 예약을 신청하실 때는 개별 타임슬롯을 선택하지 않습니다. <br />
-                      우측 입력 폼에서 <strong>원하시는 시작일/종료일 및 구체적인 시간대</strong>를 기재해 주시면 펫시터가 조율을 진행합니다.
-                    </p>
-                  </div>
-                )}
-
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
+                {renderLeftCalendarColumn()}
               </div>
 
               {/* Right Column: Detail Forms */}
-              <div id="booking-form-start" className="premium-card" style={{ flex: "1 1 calc(50% - 16px)", minWidth: "320px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div id="booking-details-column" className="premium-card" style={{ display: "flex", flexDirection: "column", gap: "20px", width: "100%" }}>
                 <h3 style={{ fontSize: "1.2rem", fontWeight: "800", borderBottom: "1.5px solid var(--border-light)", paddingBottom: "10px", margin: 0 }}>
                   📋 돌봄 예약 세부 사항 입력
                 </h3>
@@ -5544,11 +6004,37 @@ export default function UnifiedPortal() {
                       </div>
 
 
+                      {/* 마감 안내 메세지 */}
+                      {selectedDate && isDateFullyBooked(selectedDate) && (
+                        <div style={{
+                          color: "#ef4444",
+                          backgroundColor: "#fee2e2",
+                          border: "1.5px solid #fca5a5",
+                          padding: "12px 14px",
+                          borderRadius: "10px",
+                          fontSize: "0.85rem",
+                          fontWeight: "800",
+                          textAlign: "center",
+                          lineHeight: "1.5",
+                          marginBottom: "12px"
+                        }}>
+                          죄송합니다. 해당 날짜는 예약이 마감되었습니다. 🐾
+                        </div>
+                      )}
+
                       <button
                         type="submit"
                         className="btn btn-primary"
-                        disabled={isBookingLoading}
-                        style={{ width: "100%", padding: "16px", fontSize: "1.1rem", marginTop: "12px" }}
+                        disabled={isBookingLoading || (selectedDate ? isDateFullyBooked(selectedDate) : false)}
+                        style={{
+                          width: "100%",
+                          padding: "16px",
+                          fontSize: "1.1rem",
+                          marginTop: "12px",
+                          backgroundColor: (selectedDate && isDateFullyBooked(selectedDate)) ? "#9ca3af" : "var(--primary-orange)",
+                          cursor: (isBookingLoading || (selectedDate ? isDateFullyBooked(selectedDate) : false)) ? "not-allowed" : "pointer",
+                          opacity: (isBookingLoading || (selectedDate ? isDateFullyBooked(selectedDate) : false)) ? 0.6 : 1
+                        }}
                       >
                         {isBookingLoading ? "예약 신청 전송 중... (안전 복구 보호 활성)" : "돌봄 예약 확정하기 📝"}
                       </button>
@@ -5705,16 +6191,34 @@ export default function UnifiedPortal() {
                             const isActive = activeReservationIndex === res.originalIndex;
                             let badgeBg = "var(--bg-primary)";
                             let badgeColor = "var(--text-muted)";
+                            let borderStyle = "1px solid transparent";
+                            let labelPrefix = "📅";
                             
-                            if (res.status === "completed") {
+                            const statusLower = (res.status || "").toLowerCase();
+                            if (statusLower === "예약대기") {
+                              badgeBg = "hsl(35, 100%, 94%)";
+                              badgeColor = "hsl(35, 95%, 45%)";
+                              borderStyle = "1px solid hsl(35, 90%, 80%)";
+                              labelPrefix = "🕒 [대기]";
+                            } else if (statusLower === "confirmed" || statusLower === "예약확정") {
                               badgeBg = "var(--success-mint-light)";
                               badgeColor = "var(--success-mint)";
-                            } else if (res.status === "started") {
-                              badgeBg = "var(--primary-orange-light)";
-                              badgeColor = "var(--primary-orange)";
+                              borderStyle = "1px solid hsl(150, 40%, 85%)";
+                              labelPrefix = "✅ [확정]";
+                            } else if (statusLower === "started") {
+                              badgeBg = "var(--warning-coral-light)";
+                              badgeColor = "var(--warning-coral)";
+                              borderStyle = "1px solid hsl(12, 85%, 90%)";
+                              labelPrefix = "🟢 [돌봄중]";
+                            } else if (statusLower === "completed") {
+                              badgeBg = "#f1f5f9";
+                              badgeColor = "var(--text-muted)";
+                              borderStyle = "1px solid #e2e8f0";
+                              labelPrefix = "🏁 [완료]";
                             } else {
                               badgeBg = "rgba(22, 31, 56, 0.05)";
                               badgeColor = "var(--text-main)";
+                              labelPrefix = "📅";
                             }
 
                             return (
@@ -5735,7 +6239,7 @@ export default function UnifiedPortal() {
                                   fontSize: "clamp(0.55rem, 1.2vw, 0.7rem)",
                                   fontWeight: "850",
                                   cursor: "pointer",
-                                  border: isActive ? "1px solid var(--primary-orange)" : "1px solid transparent",
+                                  border: isActive ? "1px solid var(--primary-orange)" : borderStyle,
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "2px",
@@ -5743,12 +6247,12 @@ export default function UnifiedPortal() {
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
                                   width: "100%",
-                                  boxShadow: isActive ? "0 2px 5px rgba(255, 112, 67, 0.2)" : "none"
+                                  boxShadow: isActive ? "0 2px 5px rgba(255, 112, 67, 0.2)" : "none",
+                                  transition: "all 0.15s ease"
                                 }}
                                 title={`${res.client_name} (${res.pet_name}) - ${res.visit_time}`}
                               >
-                                {res.status === "completed" ? "✅" : res.status === "started" ? "⚡" : "📅"}
-                                {res.pet_name}
+                                {labelPrefix} {res.pet_name}
                               </div>
                             );
                           })}
@@ -5796,12 +6300,15 @@ export default function UnifiedPortal() {
                         fontSize: "0.8rem", fontWeight: "800",
                         padding: "6px 12px", borderRadius: "20px",
                         backgroundColor: sitterReservations[activeReservationIndex].status === "started" ? "var(--primary-orange-light)" : 
-                                         sitterReservations[activeReservationIndex].status === "completed" ? "var(--success-mint-light)" : "#e2e8f0",
+                                         sitterReservations[activeReservationIndex].status === "completed" ? "var(--success-mint-light)" : 
+                                         sitterReservations[activeReservationIndex].status === "예약대기" ? "var(--warning-coral-light)" : "#e2e8f0",
                         color: sitterReservations[activeReservationIndex].status === "started" ? "var(--primary-orange)" : 
-                               sitterReservations[activeReservationIndex].status === "completed" ? "var(--success-mint)" : "var(--text-muted)"
+                               sitterReservations[activeReservationIndex].status === "completed" ? "var(--success-mint)" : 
+                               sitterReservations[activeReservationIndex].status === "예약대기" ? "var(--warning-coral)" : "var(--text-muted)"
                       }}>
                         상태: {sitterReservations[activeReservationIndex].status === "started" ? "⚡ 돌봄 진행 중 (Started)" :
-                               sitterReservations[activeReservationIndex].status === "completed" ? "🏁 돌봄 완료 (Completed)" : "💤 대기 중 (Confirmed)"}
+                               sitterReservations[activeReservationIndex].status === "completed" ? "🏁 돌봄 완료 (Completed)" : 
+                               sitterReservations[activeReservationIndex].status === "예약대기" ? "⏳ 예약 대기 (Pending)" : "💤 대기 중 (Confirmed)"}
                       </span>
                     </div>
 
@@ -6060,7 +6567,27 @@ export default function UnifiedPortal() {
                       </div>
                     )}
 
-                    {sitterReservations[activeReservationIndex].status === "confirmed" ? (
+                    {sitterReservations[activeReservationIndex].status === "예약대기" ? (
+                      <div style={{
+                        backgroundColor: "var(--primary-orange-light)", padding: "18px", borderRadius: "var(--border-radius-md)",
+                        border: "1.5px solid var(--primary-orange)", display: "flex", flexDirection: "column", gap: "10px"
+                      }}>
+                        <strong style={{ fontSize: "0.85rem", color: "var(--primary-orange)", display: "block" }}>
+                          ⏳ 예약 대기 상태 (입금/상품권 결제 확인 필요)
+                        </strong>
+                        <p style={{ fontSize: "0.82rem", color: "var(--text-main)", margin: 0 }}>
+                          결제 수단: <strong>{sitterReservations[activeReservationIndex].payment_method || "무통장/제로페이"}</strong><br />
+                          고객이 예약 신청을 완료하고 결제/입금 확인을 기다리고 있습니다. 입금이 확인되었으면 아래 버튼을 눌러 승인해 주세요.
+                        </p>
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={() => handleConfirmPaymentReceived(sitterReservations[activeReservationIndex].id)} 
+                          style={{ backgroundColor: "var(--primary-orange)", color: "white", alignSelf: "flex-start", padding: "8px 16px", fontWeight: "750" }}
+                        >
+                          💰 결제 확인 및 예약 승인하기 ✅
+                        </button>
+                      </div>
+                    ) : sitterReservations[activeReservationIndex].status === "confirmed" ? (
                       <div style={{
                         backgroundColor: "white", padding: "18px", borderRadius: "var(--border-radius-md)",
                         border: "1px solid var(--border-light)", display: "flex", flexDirection: "column", gap: "10px"

@@ -20,7 +20,9 @@ export default function PricingSection({
   area,
   setArea,
   opts,
-  toggleOpt
+  toggleOpt,
+  leftContent,
+  isFullyBooked
 }) {
 
   const basePrice  = 17000 * days;
@@ -121,58 +123,10 @@ export default function PricingSection({
         </div>
 
         {/* ── 요금표 + 계산기 2열 ── */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-            gap: "32px", alignItems: "start",
-          }}
-        >
-          {/* 왼쪽: 추가 서비스 요금표 */}
-          <div className="premium-card" style={{ padding: "32px 28px" }}>
-            <h3 style={{ fontSize: "1.05rem", fontWeight: "800", color: "var(--text-main)", marginBottom: "20px" }}>
-              💼 추가 서비스 요금표
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {[
-                { icon: "🤝", name: "사전 만남 (상담 방문)",          price: "10,000원" },
-                { icon: "💊", name: "투약 1회",                       price: "+5,000원" },
-                { icon: "🍼", name: "강제급여 1회 (전문케어)",          price: "+10,000원" },
-                { icon: "🏥", name: "병원 방문 동행 1회",              price: "+20,000원" },
-                { icon: "📍", name: "기타 지역 (기본 8개 지역 외)",    price: "+5,000원" },
-                { icon: "🐶", name: "강아지 1마리 추가",               price: "+8,000원" },
-                { icon: "🔁", name: "1일 2회 방문",                    price: "+13,000원" },
-                { icon: "🎉", name: "법정 공휴일 / 명절",              price: "+5,000원" },
-              ].map((row, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "10px 14px", borderRadius: "8px",
-                    backgroundColor: i % 2 === 0 ? "var(--bg-primary)" : "white",
-                    border: "1px solid var(--border-light)",
-                  }}
-                >
-                  <span style={{ fontSize: "0.84rem", fontWeight: "600", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
-                    {row.icon} {row.name}
-                  </span>
-                  <strong style={{ fontSize: "0.88rem", color: "var(--primary-orange)", fontWeight: "800", whiteSpace: "nowrap" }}>
-                    {row.price}
-                  </strong>
-                </div>
-              ))}
-            </div>
-            <div
-              style={{
-                marginTop: "16px", padding: "12px 14px",
-                backgroundColor: "var(--warning-coral-light)",
-                borderRadius: "8px", border: "1px solid var(--warning-coral)",
-                fontSize: "0.78rem", color: "var(--warning-coral)", lineHeight: "1.6", fontWeight: "600",
-              }}
-            >
-              ⚠️ 기본 방문 지역: 고현·장평·상문·수월·중곡·옥포·아주·사곡 (추가금 없음)
-              <br />다묘가정 및 강아지 함께 돌봄은 난이도에 따라 추가요금 발생 가능
-            </div>
+        <div className="pricing-grid-container">
+          {/* 왼쪽: 실시간 예약 현황 달력 */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
+            {leftContent}
           </div>
 
           {/* 오른쪽: 실시간 계산기 */}
@@ -218,23 +172,34 @@ export default function PricingSection({
                 </label>
                 <div style={{ display: "flex", gap: "8px" }}>
                   {[
-                    { val: "기본", label: "🏠 기본 지역" },
-                    { val: "기타", label: "🗺️ 기타 (+5,000)" },
+                    { val: "기본", label: "🏠 기본 지역", tooltip: "기본 방문 가능 지역 (추가금 없음)" },
+                    { val: "기타", label: "🗺️ 기타 (+5,000)", tooltip: "기본 8개 지역 외 거리 추가금 발생" },
                   ].map((a) => (
                     <button
                       key={a.val}
                       onClick={() => setArea(a.val)}
+                      title={a.tooltip}
                       style={{
                         flex: 1, padding: "9px 8px", borderRadius: "8px",
                         border: `1.5px solid ${area === a.val ? "var(--primary-orange)" : "rgba(255,255,255,0.25)"}`,
                         background: area === a.val ? "var(--primary-orange)" : "rgba(255,255,255,0.08)",
                         color: "white", fontWeight: "700", fontSize: "0.8rem", cursor: "pointer",
+                        transition: "all 0.2s ease"
                       }}
                     >
                       {a.label}
                     </button>
                   ))}
                 </div>
+                <p style={{
+                  fontSize: "0.73rem",
+                  color: "rgba(255,255,255,0.7)",
+                  marginTop: "8px",
+                  lineHeight: "1.4",
+                  fontWeight: "500"
+                }}>
+                  * 기본 8개 지역(고현동, 장평동, 상문동, 수양동, 아주동, 옥포동, 능포동, 장승포동) 외 지역은 동선과 이동 시간을 고려하여 5,000원의 거리 추가금이 발생합니다. ✨
+                </p>
               </div>
 
               {/* 추가 옵션 체크박스 */}
@@ -300,33 +265,57 @@ export default function PricingSection({
                 </div>
               </div>
 
+              {/* 마감 안내 메세지 */}
+              {isFullyBooked && (
+                <div style={{
+                  color: "#ef4444",
+                  backgroundColor: "#fee2e2",
+                  border: "1.5px solid #fca5a5",
+                  padding: "12px 14px",
+                  borderRadius: "10px",
+                  fontSize: "0.85rem",
+                  fontWeight: "800",
+                  textAlign: "center",
+                  lineHeight: "1.5",
+                  marginBottom: "12px"
+                }}>
+                  죄송합니다. 해당 날짜는 예약이 마감되었습니다. 🐾
+                </div>
+              )}
+
               {/* CTA 버튼 */}
               {onBookingClick && (
                 <button
                   onClick={onBookingClick}
+                  disabled={isFullyBooked}
                   style={{
                     width: "100%", 
                     padding: "16px 20px", 
                     fontSize: "1.05rem", 
                     fontWeight: "850", 
                     marginTop: "20px",
-                    backgroundColor: "var(--primary-orange)",
+                    backgroundColor: isFullyBooked ? "#9ca3af" : "var(--primary-orange)",
                     color: "white",
                     border: "none",
                     borderRadius: "12px",
-                    cursor: "pointer",
-                    boxShadow: "0 6px 20px rgba(255, 112, 67, 0.3)",
-                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+                    cursor: isFullyBooked ? "not-allowed" : "pointer",
+                    boxShadow: isFullyBooked ? "none" : "0 6px 20px rgba(255, 112, 67, 0.3)",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    opacity: isFullyBooked ? 0.7 : 1
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)";
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 112, 67, 0.4)";
+                    if (!isFullyBooked) {
+                      e.currentTarget.style.backgroundColor = "var(--primary-orange-hover)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 112, 67, 0.4)";
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--primary-orange)";
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(255, 112, 67, 0.3)";
+                    if (!isFullyBooked) {
+                      e.currentTarget.style.backgroundColor = "var(--primary-orange)";
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 6px 20px rgba(255, 112, 67, 0.3)";
+                    }
                   }}
                 >
                   📅 예약하러 가기 ➔
