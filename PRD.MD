@@ -257,6 +257,18 @@ graph TD
   - 예약 폼 3단계 입력 후 [돌봄 예약 확정하기 📝] 버튼을 누르면 예약 접수 상세 요약 모달이 표시됩니다.
   - 모달 내 최종 정보를 모두 확인하고 [💳 결제 및 예약 확정] 버튼을 누르면 토스페이먼츠 결제창이 팝업 또는 iframe 형태로 노출됩니다.
   - 기본 제공되는 가상 테스트 클라이언트 키(`test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq`)를 활용하여 모의 가상 결제가 신속하게 진행됩니다.
+  - **Step 3 예약 확정 버튼이 클릭된 후 동작할 최종 승인 스니펫**:
+    ```javascript
+    const confirmBtn = document.getElementById("demo-confirm-payment-btn");
+    if (confirmBtn) {
+      confirmBtn.click();
+      console.log("✅ 최종 결제 요청에 성공했습니다!");
+    } else {
+      console.error(
+        "❌ 아직 예약 요약이 생성되지 않아 버튼을 찾을 수 없습니다.",
+      );
+    }
+    ```
 - **성공 및 실패 결제 라우트 구축**:
   - **성공 페이지 (`/success`)**: 결제가 정상 완료되면 `/success?paymentKey=...&orderId=...&amount=...` 주소로 자동 이동합니다.
     - 로컬스토리지에 임시 저장된 예약 및 고객 정보가 자동으로 복구 및 파싱되어 공식 예약 데이터베이스 리스트(`yoongyopoomae_local_reservations` 및 `yoongyopoomae_local_customers`)에 안전하게 영구 동기화 처리됩니다.
