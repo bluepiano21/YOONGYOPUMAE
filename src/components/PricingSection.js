@@ -6,6 +6,7 @@ import React, { useState } from "react";
 const BASIC_AREAS = ["고현", "장평", "상문", "수월", "중곡", "옥포", "아주", "사곡"];
 
 const ADD_ON_OPTIONS = [
+  { key: "preMeeting",    label: "🤝 사전만남",        desc: "(1회)",         price: 10000 },
   { key: "medication",    label: "💊 투약",           desc: "(1회)",         price: 5000  },
   { key: "forcedFeeding", label: "🍼 강제급여",        desc: "(전문케어 1회)", price: 10000 },
   { key: "hospital",      label: "🏥 병원 방문 동행",   desc: "(1회)",         price: 20000 },
@@ -41,7 +42,7 @@ export default function PricingSection({
         borderTop: "1.5px solid var(--border-light)",
       }}
     >
-      <div className="container" style={{ maxWidth: "1100px" }}>
+      <div className="container" style={{ maxWidth: "1200px" }}>
         {/* ── 섹션 헤더 ── */}
         <div style={{ textAlign: "center", marginBottom: "56px" }}>
           <span
@@ -56,8 +57,9 @@ export default function PricingSection({
             💰 투명한 요금 공개
           </span>
           <h2
+            className="text-2xl md:text-3xl"
             style={{
-              fontSize: "2.2rem", fontWeight: "800",
+              fontWeight: "800",
               color: "var(--text-main)", marginTop: "14px", marginBottom: "10px",
             }}
           >
@@ -98,8 +100,8 @@ export default function PricingSection({
           ].map((s) => (
             <div
               key={s.title}
-              className="premium-card"
-              style={{ padding: "36px 28px", borderTop: `4px solid ${s.accent}` }}
+              className="premium-card p-6 md:p-8"
+              style={{ borderTop: `4px solid ${s.accent}` }}
             >
               <div style={{ fontSize: "2.2rem", marginBottom: "16px" }}>{s.icon}</div>
               <h3 style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--text-main)", marginBottom: "10px" }}>
@@ -129,13 +131,13 @@ export default function PricingSection({
             {leftContent}
           </div>
 
-          {/* 오른쪽: 실시간 계산기 */}
           <div
-            className="premium-card"
+            className="premium-card p-4 md:p-8 w-full"
             style={{
-              padding: "32px 28px",
               background: "linear-gradient(135deg, hsl(215,60%,18%) 0%, hsl(215,70%,26%) 100%)",
               color: "white", border: "none",
+              margin: "0 auto",
+              maxWidth: "520px",
             }}
           >
             <h3 style={{ fontSize: "1.05rem", fontWeight: "800", color: "white", marginBottom: "4px" }}>
@@ -177,6 +179,7 @@ export default function PricingSection({
                   ].map((a) => (
                     <button
                       key={a.val}
+                      id={a.val === "기본" ? "demo-basic-area-btn" : "demo-other-area-btn"}
                       onClick={() => setArea(a.val)}
                       title={a.tooltip}
                       style={{
@@ -191,15 +194,25 @@ export default function PricingSection({
                     </button>
                   ))}
                 </div>
-                <p style={{
-                  fontSize: "0.73rem",
-                  color: "rgba(255,255,255,0.7)",
-                  marginTop: "8px",
-                  lineHeight: "1.4",
-                  fontWeight: "500"
+                <div style={{
+                  fontSize: "0.76rem",
+                  color: "#ffd98c", // 선명하고 따뜻한 금색/노란색 톤
+                  backgroundColor: "rgba(255, 179, 64, 0.12)", // 연한 엠버 배경
+                  border: "1px solid rgba(255, 179, 64, 0.35)", // 엠버 테두리
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  marginTop: "10px",
+                  lineHeight: "1.5",
+                  fontWeight: "600"
                 }}>
-                  * 기본 8개 지역(고현동, 장평동, 상문동, 수양동, 아주동, 옥포동, 능포동, 장승포동) 외 지역은 동선과 이동 시간을 고려하여 5,000원의 거리 추가금이 발생합니다. ✨
-                </p>
+                  📢 <strong style={{ color: "#ffd98c" }}>기본 8개 지역 안내</strong>: 
+                  <span style={{ color: "#ffffff", marginLeft: "4px" }}>
+                    고현동, 장평동, 상문동, 수월동, 중곡동, 옥포동, 아주동, 사곡리
+                  </span>
+                  <div style={{ marginTop: "4px", fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.8)", fontWeight: "500" }}>
+                    * 기본 지역 외에는 동선과 이동 시간을 고려하여 <strong>5,000원의 거리 추가금</strong>이 발생합니다. ✨
+                  </div>
+                </div>
               </div>
 
               {/* 추가 옵션 체크박스 */}
@@ -213,7 +226,7 @@ export default function PricingSection({
                       key={opt.key}
                       style={{
                         display: "flex", alignItems: "center", gap: "10px",
-                        padding: "8px 12px", borderRadius: "8px", cursor: "pointer",
+                        padding: "8px 10px", borderRadius: "8px", cursor: "pointer",
                         border: `1px solid ${opts[opt.key] ? "var(--primary-orange)" : "rgba(255,255,255,0.15)"}`,
                         background: opts[opt.key] ? "rgba(255,127,63,0.2)" : "rgba(255,255,255,0.05)",
                         transition: "all 0.15s ease",
@@ -286,6 +299,7 @@ export default function PricingSection({
               {/* CTA 버튼 */}
               {onBookingClick && (
                 <button
+                  id="demo-submit-btn"
                   onClick={onBookingClick}
                   disabled={isFullyBooked}
                   style={{

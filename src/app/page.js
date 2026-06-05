@@ -598,7 +598,8 @@ export default function UnifiedPortal() {
   };
 
   const toggleCalculatorOpt = (key) => {
-    if (key === "medication") setOptMedication((prev) => !prev);
+    if (key === "preMeeting") setOptPreMeet((prev) => !prev);
+    else if (key === "medication") setOptMedication((prev) => !prev);
     else if (key === "forcedFeeding") setOptForcedFeeding((prev) => !prev);
     else if (key === "hospital") setOptHospital((prev) => !prev);
     else if (key === "twoVisits") setOptTwoVisits((prev) => !prev);
@@ -1909,8 +1910,24 @@ export default function UnifiedPortal() {
 
   // Toss Payments 결제창 호출 및 예약 임시 저장 함수
   const handleConfirmPayment = async () => {
+    // ── 디버그 진단 블록 ──────────────────────────────────────
+    console.group("[💳 handleConfirmPayment] 결제 흐름 진단 시작");
+    console.log("tempBookingData:", tempBookingData);
+    console.log("bookingSummary:", bookingSummary);
+    console.log("paymentMethod:", paymentMethod);
+    console.log("window.TossPayments 존재 여부:", typeof window !== "undefined" ? typeof window.TossPayments : "SSR");
+    console.log("NEXT_PUBLIC_TOSS_CLIENT_KEY:", (process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "").slice(0, 14) + "...");
+    console.groupEnd();
+    // ─────────────────────────────────────────────────────────
+
     if (!tempBookingData || !bookingSummary) {
-      showToast("예약 정보가 유효하지 않습니다.");
+      const missing = !tempBookingData ? "tempBookingData" : "bookingSummary";
+      console.error(
+        `[❌ handleConfirmPayment] ${missing}가 null입니다.\n` +
+        "→ 예약 폼(Step 1~3)을 완전히 작성한 뒤 '예약 내용 확인' 단계에서 결제 버튼을 눌러야 합니다.\n" +
+        "→ 콘솔 매크로로 PricingSection의 '예약하러 가기' 버튼을 직접 클릭하면 폼 데이터가 비어있어 여기서 중단됩니다."
+      );
+      showToast("❌ 예약 정보가 유효하지 않습니다. 예약 폼(Step 1~3)을 모두 작성해 주세요.");
       return;
     }
 
@@ -2012,9 +2029,9 @@ export default function UnifiedPortal() {
 
       // .trim()으로 환경변수 값의 앞뒤 공백/개행 제거 → 401 인증 오류 방지
       const envKey = (process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "").trim();
-      const clientKey = envKey || "test_ck_D5maMgNXP2ea1OD1a5A8w14tba0P"; // 공식 기본 테스트 클라이언트 키 폴백
+      const clientKey = envKey || "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq"; // 공식 기본 테스트 클라이언트 키 폴백
       
-      console.log(`[Toss Payments] 결제창 호출 키 확인: ${clientKey.slice(0, 10)}... (환경 변수 적용 여부: ${!!envKey})`);
+      console.log(`[Toss Payments] 결제창 호출 키 확인: ${clientKey.slice(0, 14)}... (환경 변수 적용 여부: ${!!envKey})`);
       
       if (!envKey) {
         console.warn(
@@ -2026,25 +2043,41 @@ export default function UnifiedPortal() {
 
       // SDK 로드 재검증: afterInteractive 전략 사용 중이므로 window.TossPayments가 없다면 안내
       if (typeof window.TossPayments !== "function") {
+        console.error("[❌ Toss SDK] window.TossPayments가 function이 아닙니다. SDK 스크립트 로드 실패 또는 아직 미완료 상태입니다.");
         showToast("결제 모듈을 로딩 중입니다. 잠시 후 다시 시도해 주세요.");
         return;
       }
 
-      const tossPayments = window.TossPayments(clientKey);
+      console.log("[✅ Toss SDK] window.TossPayments 확인됨. 결제창 호출 시작...");
 
-      tossPayments.requestPayment("카드", {
-        amount: bookingSummary.totalPrice,
-        orderId: `order_${Date.now()}`,
-        orderName: `윤교품애 펫케어 예약 - ${bookingSummary.petName}`,
-        customerName: activeUser ? activeUser.full_name : "보호자 회원",
-        successUrl: `${window.location.origin}/success`,
-        failUrl: `${window.location.origin}/fail`,
-      }).catch((error) => {
-        console.error("Toss payments error:", error);
-        showToast(`결제창 열기 실패: ${error.message || error}`);
-      });
+      try {
+        const tossPayments = window.TossPayments(clientKey);
+        await tossPayments.requestPayment("카드", {
+          amount: bookingSummary.totalPrice,
+          orderId: `order_${Date.now()}`,
+          orderName: `윤교품애 펫케어 예약 - ${bookingSummary.petName}`,
+          customerName: activeUser ? activeUser.full_name : "보호자 회원",
+          successUrl: `${window.location.origin}/success`,
+          failUrl: `${window.location.origin}/fail`,
+        });
+        console.log("[✅ Toss Payments] requestPayment 호출 완료 (결제창 팝업 대기 중)");
+      } catch (error) {
+        console.error("[❌ Toss Payments] requestPayment 실패:", error);
+        console.error("에러 코드:", error.code);
+        console.error("에러 메시지:", error.message);
+        if (error.code === "USER_CANCEL") {
+          showToast("결제를 취소하셨습니다.");
+        } else {
+          showToast(`결제창 열기 실패: ${error.message || JSON.stringify(error)}`);
+        }
+      }
     } else {
-      showToast("결제 모듈이 아직 로드되지 않았습니다. 잠시 후 다시 시도해 주세요.");
+      console.error(
+        "[❌ Toss SDK] window.TossPayments가 undefined입니다.\n" +
+        "→ 가능한 원인: 네트워크 오류로 SDK 스크립트 미로드, CSP(Content Security Policy) 차단, 또는 Next.js Script 컴포넌트 strategy가 올바르지 않음.\n" +
+        "→ 개발자 도구 Network 탭에서 'js.tosspayments.com/v1/payment' 요청 상태를 확인해 주세요."
+      );
+      showToast("❌ 결제 모듈이 로드되지 않았습니다. 네트워크 연결 및 브라우저 콘솔을 확인해 주세요.");
     }
   };
 
@@ -2863,6 +2896,7 @@ export default function UnifiedPortal() {
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", backgroundColor: "var(--bg-secondary)", padding: "12px", borderRadius: "var(--border-radius-sm)" }}>
                     {[
                       "공휴일/명절 할증 (+5,000원)",
+                      "사전 만남 (+10,000원)",
                       "투약 1회 (+5,000원)",
                       "급여도움(강제급여) (+10,000원)",
                       "병원 방문 1회 (+20,000원)",
@@ -3551,10 +3585,10 @@ export default function UnifiedPortal() {
       {/* ============================================================== */}
       {/* 4. BOOKING SUCCESS MODAL */}
       {/* ============================================================== */}
-      {showBookingSuccessModal && bookingSummary && (
+      {bookingSummary && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-          backgroundColor: "rgba(22, 31, 56, 0.7)", display: "flex", alignItems: "center",
+          backgroundColor: "rgba(22, 31, 56, 0.7)", display: showBookingSuccessModal ? "flex" : "none", alignItems: "center",
           justifyContent: "center", zIndex: 2000, backdropFilter: "blur(8px)"
         }}>
           <div className="premium-card animate-fade-in" style={{
@@ -3829,6 +3863,7 @@ export default function UnifiedPortal() {
             </div>
 
             <button
+              id="demo-confirm-payment-btn"
               onClick={handleConfirmPayment}
               style={{
                 width: "100%",
@@ -4012,6 +4047,7 @@ export default function UnifiedPortal() {
               boxShadow: "0 8px 24px rgba(22, 31, 56, 0.08)"
             }}>
               <button
+                id="demo-home-tab-btn"
                 onClick={() => setActivePortal("home")}
                 style={{
                   border: "none", background: activePortal === "home" ? "var(--primary-orange)" : "transparent",
@@ -4020,9 +4056,22 @@ export default function UnifiedPortal() {
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
               >
-                🏠 윤교품애 홈
+                🏠 홈
               </button>
               <button
+                id="demo-posts-tab-btn"
+                onClick={() => setActivePortal("posts")}
+                style={{
+                  border: "none", background: activePortal === "posts" ? "var(--primary-orange)" : "transparent",
+                  color: activePortal === "posts" ? "white" : "hsl(150, 50%, 25%)",
+                  padding: "8px 18px", borderRadius: "var(--border-radius-full)",
+                  fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
+                }}
+              >
+                📝 돌봄 후기/일지
+              </button>
+              <button
+                id="demo-booking-tab-btn"
                 onClick={() => {
                   setActivePortal("booking");
                   setBookingSubView("calculator");
@@ -4034,7 +4083,7 @@ export default function UnifiedPortal() {
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
               >
-                📅 실시간 캘린더 예약
+                📅 실시간 예약
               </button>
               <button
                 onClick={() => {
@@ -4054,7 +4103,7 @@ export default function UnifiedPortal() {
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
               >
-                🔒 펫시터 대시보드
+                🔒 대시보드
               </button>
             </div>
 
@@ -4114,6 +4163,26 @@ export default function UnifiedPortal() {
                   }}
                 >
                   🏠 윤교품애 홈
+                </button>
+                <button
+                  onClick={() => {
+                    setActivePortal("posts");
+                    setMobileMenuOpen(false);
+                  }}
+                  style={{
+                    border: "none",
+                    background: activePortal === "posts" ? "var(--primary-orange)" : "var(--bg-primary)",
+                    color: activePortal === "posts" ? "white" : "var(--text-main)",
+                    padding: "12px 20px",
+                    borderRadius: "var(--border-radius-md)",
+                    fontSize: "1rem",
+                    fontWeight: "750",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "var(--transition-fast)"
+                  }}
+                >
+                  📝 돌봄 후기/일지
                 </button>
                 <button
                   onClick={() => {
@@ -4195,20 +4264,18 @@ export default function UnifiedPortal() {
       <main className="animate-fade-in" style={{ flex: 1, display: activePortal === "home" ? "block" : "none" }}>
           
           {/* Hero Section from index.html (Synthesized with Outfit styling) */}
-          <section style={{
-            padding: "80px 0",
+          <section className="p-6 md:p-12" style={{
             background: "linear-gradient(135deg, hsl(38, 100%, 95%) 0%, hsl(150, 50%, 96%) 100%)",
             borderBottom: "1px solid var(--border-light)"
           }}>
-            <div className="container" style={{
+            <div className="container hero-container" style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
               gap: "48px",
               alignItems: "center"
             }}>
-              <div>
-                <h1 style={{
-                  fontSize: "3.2rem",
+              <div className="hero-text">
+                <h1 className="text-3xl md:text-5xl hero-title" style={{
                   lineHeight: "1.15",
                   fontWeight: "800",
                   color: "var(--text-main)",
@@ -4216,13 +4283,13 @@ export default function UnifiedPortal() {
                 }}>
                   고양이들의 행복한<br />기록을 담습니다 🐾
                 </h1>
-                <p style={{ fontSize: "1.15rem", color: "var(--text-muted)", lineHeight: "1.6", marginBottom: "30px" }}>
+                <p className="text-base md:text-lg hero-paragraph" style={{ color: "var(--text-muted)", lineHeight: "1.6", marginBottom: "30px" }}>
                   전문 펫시터 전윤교가 들려주는 생생한 돌봄 이야기와 소중한 고객 고양이들의 일상을 만나보세요. 
                   주요 주거 안전 코드 보관과 반자동 일지 기록을 제공하는 프리미엄 연동 시스템입니다.
                 </p>
 
                 {/* Status Indicator from index.html */}
-                <div style={{
+                <div className="hero-status" style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "10px",
@@ -4271,9 +4338,8 @@ export default function UnifiedPortal() {
           {/* ============================================================== */}
           {/* 윤교품애 브랜드 소개 & 요양 케어 전문 서비스 안내 */}
           {/* ============================================================== */}
-          <section style={{
+          <section className="p-6 md:p-12" style={{
             backgroundColor: "var(--bg-secondary)",
-            padding: "80px 0",
             borderTop: "1.5px solid var(--border-light)",
             borderBottom: "1.5px solid var(--border-light)"
           }}>
@@ -4291,8 +4357,7 @@ export default function UnifiedPortal() {
                 }}>
                   반려동물 방문 탁묘 및 요양보호 & 회복 케어 전문
                 </span>
-                <h2 style={{
-                  fontSize: "2.4rem",
+                <h2 className="text-2xl md:text-3xl" style={{
                   fontWeight: "800",
                   color: "var(--text-main)",
                   marginTop: "16px",
@@ -4300,8 +4365,7 @@ export default function UnifiedPortal() {
                 }}>
                   윤교품애
                 </h2>
-                <p style={{
-                  fontSize: "1.25rem",
+                <p className="text-lg md:text-xl" style={{
                   fontWeight: "700",
                   color: "var(--primary-orange)",
                   fontStyle: "italic",
@@ -4313,17 +4377,16 @@ export default function UnifiedPortal() {
 
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                 gap: "32px",
                 marginBottom: "48px"
               }}>
                 {/* 브랜드 스토리 카드 */}
-                <div className="premium-card" style={{
+                <div className="premium-card p-6 md:p-8" style={{
                   backgroundColor: "white",
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "center",
-                  padding: "40px 32px"
+                  justifyContent: "center"
                 }}>
                   <p style={{
                     fontSize: "1.05rem",
@@ -4354,9 +4417,8 @@ export default function UnifiedPortal() {
                 </div>
 
                 {/* 자격증 정보 카드 */}
-                <div className="premium-card" style={{
-                  backgroundColor: "white",
-                  padding: "40px 32px"
+                <div className="premium-card p-6 md:p-8" style={{
+                  backgroundColor: "white"
                 }}>
                   <h4 style={{
                     fontSize: "1.1rem",
@@ -4421,9 +4483,8 @@ export default function UnifiedPortal() {
                 marginBottom: "40px"
               }}>
                 {/* 대상 안내 카드 */}
-                <div className="premium-card" style={{
-                  backgroundColor: "white",
-                  padding: "36px 30px"
+                <div className="premium-card p-6 md:p-8" style={{
+                  backgroundColor: "white"
                 }}>
                   <h4 style={{
                     fontSize: "1.1rem",
@@ -4461,9 +4522,8 @@ export default function UnifiedPortal() {
                 </div>
 
                 {/* 마음가짐 카드 */}
-                <div className="premium-card" style={{
+                <div className="premium-card p-6 md:p-8" style={{
                   backgroundColor: "white",
-                  padding: "36px 30px",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between"
@@ -4517,224 +4577,231 @@ export default function UnifiedPortal() {
 
           {/* PricingSection removed from home portal */}
 
-          {/* Filter and Post lists */}
-          <section style={{ padding: "60px 0" }}>
-            <div className="container">
-              
-              <div style={{
-                display: "flex", flexWrap: "wrap", justifyContent: "space-between",
-                alignItems: "center", gap: "20px", marginBottom: "40px",
-                borderBottom: "1.5px solid var(--border-light)", paddingBottom: "24px"
-              }}>
-                {/* Category Filtering Tab controls */}
-                <div style={{ display: "flex", gap: "10px", overflowX: "auto" }}>
-                  {[
-                    { val: "all", label: "전체 목록" },
-                    { val: "log", label: "돌봄 일지" },
-                    { val: "photo", label: "사진첩" },
-                    { val: "tip", label: "전문가 팁" }
-                  ].map(cat => (
-                    <button
-                      key={cat.val}
-                      onClick={() => setCurrentFilter(cat.val)}
-                      style={{
-                        padding: "10px 20px", border: "1.5px solid var(--border-light)",
-                        backgroundColor: currentFilter === cat.val ? "var(--primary-orange)" : "var(--bg-secondary)",
-                        color: currentFilter === cat.val ? "white" : "var(--text-main)",
-                        fontWeight: "700", fontSize: "0.9rem", borderRadius: "var(--border-radius-full)",
-                        cursor: "pointer", transition: "var(--transition-fast)", whiteSpace: "nowrap"
-                      }}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
+        </main>
 
-                {/* Create post button for Admin & Member */}
-                {activeUser && (activeUser.role === "admin" || activeUser.role === "member") && (
-                  <button className="btn btn-primary" onClick={() => setShowCreateModal(true)} style={{ padding: "10px 20px" }}>
-                    ✍️ 새 포스트 작성
+      {/* ============================================================== */}
+      {/* 7.5. PORTAL VIEW A-2: 📝 YOONGYOPOOMAE POSTS & BLOG */}
+      {/* ============================================================== */}
+      <main className="animate-fade-in" style={{ flex: 1, display: activePortal === "posts" ? "block" : "none" }}>
+        
+        {/* Filter and Post lists */}
+        <section style={{ padding: "60px 0" }}>
+          <div className="container">
+            
+            <div style={{
+              display: "flex", flexWrap: "wrap", justifyContent: "space-between",
+              alignItems: "center", gap: "20px", marginBottom: "40px",
+              borderBottom: "1.5px solid var(--border-light)", paddingBottom: "24px"
+            }}>
+              {/* Category Filtering Tab controls */}
+              <div style={{ display: "flex", gap: "10px", overflowX: "auto" }}>
+                {[
+                  { val: "all", label: "전체 목록" },
+                  { val: "log", label: "돌봄 일지" },
+                  { val: "photo", label: "사진첩" },
+                  { val: "tip", label: "전문가 팁" }
+                ].map(cat => (
+                  <button
+                    key={cat.val}
+                    onClick={() => setCurrentFilter(cat.val)}
+                    style={{
+                      padding: "10px 20px", border: "1.5px solid var(--border-light)",
+                      backgroundColor: currentFilter === cat.val ? "var(--primary-orange)" : "var(--bg-secondary)",
+                      color: currentFilter === cat.val ? "white" : "var(--text-main)",
+                      fontWeight: "700", fontSize: "0.9rem", borderRadius: "var(--border-radius-full)",
+                      cursor: "pointer", transition: "var(--transition-fast)", whiteSpace: "nowrap"
+                    }}
+                  >
+                    {cat.label}
                   </button>
-                )}
+                ))}
               </div>
 
-              {/* Dynamic Posts Grid conforming to index.html layouts */}
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                gap: "30px"
-              }}>
-                {filteredPosts.map(post => {
-                  const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "sitter" || activeUser.role === "admin");
-                  const isLocked = post.is_restricted && !hasAccess;
-                  const isExpanded = expandedPostId === post.id;
-                  const isAdmin = activeUser && activeUser.role === "admin";
-                  const isOwner = activeUser && (
-                    activeUser.role === "admin" || 
-                    (post.user_id && post.user_id === activeUser.id)
-                  );
+              {/* Create post button for Admin & Member */}
+              {activeUser && (activeUser.role === "admin" || activeUser.role === "member") && (
+                <button className="btn btn-primary" onClick={() => setShowCreateModal(true)} style={{ padding: "10px 20px" }}>
+                  ✍️ 새 포스트 작성
+                </button>
+              )}
+            </div>
 
-                  return (
+            {/* Dynamic Posts Grid conforming to index.html layouts */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "30px"
+            }}>
+              {filteredPosts.map(post => {
+                const hasAccess = activeUser && (activeUser.role === "member" || activeUser.role === "vip" || activeUser.role === "sitter" || activeUser.role === "admin");
+                const isLocked = post.is_restricted && !hasAccess;
+                const isExpanded = expandedPostId === post.id;
+                const isAdmin = activeUser && activeUser.role === "admin";
+                const isOwner = activeUser && (
+                  activeUser.role === "admin" || 
+                  (post.user_id && post.user_id === activeUser.id)
+                );
+
+                return (
+                  <div
+                    key={post.id}
+                    onClick={() => handlePostCardClick(post)}
+                    className="premium-card animate-fade-in"
+                    style={{
+                      cursor: "pointer",
+                      overflow: "hidden",
+                      display: "flex",
+                      flexDirection: "column",
+                      border: isExpanded ? "2px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
+                      position: "relative"
+                    }}
+                  >
+                    {/* Image Zone with lock banner if restricted */}
                     <div
-                      key={post.id}
-                      onClick={() => handlePostCardClick(post)}
-                      className="premium-card animate-fade-in"
                       style={{
-                        cursor: "pointer",
-                        overflow: "hidden",
-                        display: "flex",
-                        flexDirection: "column",
-                        border: isExpanded ? "2px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
-                        position: "relative"
+                        height: "200px",
+                        position: "relative",
+                        backgroundColor: "#e2e8f0",
+                        backgroundImage: `url(${post.image_url})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        backgroundRepeat: "no-repeat",
+                        transition: "var(--transition-smooth)"
                       }}
+                      aria-label={sanitizeInputText(post.title)}
                     >
-                      {/* Image Zone with lock banner if restricted */}
-                      <div
-                        style={{
-                          height: "200px",
-                          position: "relative",
-                          backgroundColor: "#e2e8f0",
-                          backgroundImage: `url(${post.image_url})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: "center",
-                          backgroundRepeat: "no-repeat",
-                          transition: "var(--transition-smooth)"
-                        }}
-                        aria-label={sanitizeInputText(post.title)}
-                      >
-                        <span style={{
-                          position: "absolute", top: "12px", right: "12px",
-                          backgroundColor: "rgba(255, 255, 255, 0.9)", color: "var(--text-main)",
-                          fontSize: "0.7rem", fontWeight: "800", padding: "4px 8px", borderRadius: "12px",
-                          border: "1px solid var(--border-light)"
+                      <span style={{
+                        position: "absolute", top: "12px", right: "12px",
+                        backgroundColor: "rgba(255, 255, 255, 0.9)", color: "var(--text-main)",
+                        fontSize: "0.7rem", fontWeight: "800", padding: "4px 8px", borderRadius: "12px",
+                        border: "1px solid var(--border-light)"
+                      }}>
+                        {getCategoryName(post.category)}
+                      </span>
+
+                      {isLocked && (
+                        <div style={{
+                          position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+                          backgroundColor: "rgba(22, 31, 56, 0.75)", display: "flex", flexDirection: "column",
+                          alignItems: "center", justifyContent: "center", color: "white", gap: "8px"
                         }}>
-                          {getCategoryName(post.category)}
-                        </span>
-
-                        {isLocked && (
-                          <div style={{
-                            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-                            backgroundColor: "rgba(22, 31, 56, 0.75)", display: "flex", flexDirection: "column",
-                            alignItems: "center", justifyContent: "center", color: "white", gap: "8px"
-                          }}>
-                            <i className="fas fa-lock" style={{ fontSize: "2.2rem", color: "var(--primary-orange)" }}></i>
-                            <span style={{ fontSize: "0.85rem", fontWeight: "700", letterSpacing: "0.5px" }}>
-                              VIP 회원 전용
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Content zone */}
-                      <div style={{ padding: "20px", flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          <span>📅 {new Date(post.created_at).toLocaleDateString()}</span>
-                          <span>👤 {post.author_name}</span>
-                        </div>
-
-                        <h3 style={{ fontSize: "1.15rem", fontWeight: "800", color: "var(--text-main)", lineHeight: "1.4" }}>
-                          {sanitizeInputText(post.title)}
-                          {post.is_restricted && <span style={{ marginLeft: "6px", color: "var(--primary-orange)" }}>🔒</span>}
-                        </h3>
-
-                        <p style={{
-                          fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.6",
-                          whiteSpace: isExpanded ? "pre-wrap" : "normal",
-                          display: isExpanded ? "block" : "-webkit-box",
-                          WebkitLineClamp: isExpanded ? "none" : 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: isExpanded ? "auto" : "hidden",
-                          maxHeight: isExpanded ? "200px" : "none",
-                          paddingRight: isExpanded ? "6px" : "0",
-                          margin: 0
-                        }}>
-                          {sanitizeInputText(post.content)}
-                        </p>
-                      </div>
-
-                      {/* Sitter ImageUploader (Admin interface when expanded) */}
-                      {isExpanded && isAdmin && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            padding: "0 20px 20px 20px",
-                            borderTop: "1.5px dashed var(--border-light)",
-                            paddingTop: "15px"
-                          }}
-                        >
-                          <ImageUploader
-                            postId={post.id}
-                            userId={activeUser?.id}
-                            isOwnerOrAdmin={true}
-                          />
+                          <i className="fas fa-lock" style={{ fontSize: "2.2rem", color: "var(--primary-orange)" }}></i>
+                          <span style={{ fontSize: "0.85rem", fontWeight: "700", letterSpacing: "0.5px" }}>
+                            VIP 회원 전용
+                          </span>
                         </div>
                       )}
+                    </div>
 
-                      {/* Card Footer action indicators */}
-                      <div style={{
-                        padding: "12px 20px",
-                        backgroundColor: "var(--bg-primary)",
-                        borderTop: "1px solid var(--border-light)",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}>
-                        <span 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePostCardClick(post);
-                          }}
-                          style={{ 
-                            fontSize: "0.8rem", 
-                            color: "var(--text-muted)",
-                            cursor: "pointer",
-                            fontWeight: "700"
-                          }}
-                        >
-                          {isLocked ? "🔒 클릭하여 회원권 로그인" : isExpanded ? "▲ 접기" : "▼ 클릭하여 전체 읽기"}
-                        </span>
-
-                        {isOwner && (
-                          <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={(e) => handleEditPostClick(e, post)}
-                              style={{
-                                backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
-                                border: "none", padding: "4px 10px", borderRadius: "6px",
-                                fontSize: "0.75rem", fontWeight: "700", cursor: "pointer"
-                              }}
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={(e) => handleDeletePost(e, post)}
-                              style={{
-                                backgroundColor: "var(--warning-coral-light)", color: "var(--warning-coral)",
-                                border: "none", padding: "4px 10px", borderRadius: "6px",
-                                fontSize: "0.75rem", fontWeight: "700", cursor: "pointer"
-                              }}
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        )}
+                    {/* Content zone */}
+                    <div style={{ padding: "20px", flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                        <span>📅 {new Date(post.created_at).toLocaleDateString()}</span>
+                        <span>👤 {post.author_name}</span>
                       </div>
 
+                      <h3 style={{ fontSize: "1.15rem", fontWeight: "800", color: "var(--text-main)", lineHeight: "1.4" }}>
+                        {sanitizeInputText(post.title)}
+                        {post.is_restricted && <span style={{ marginLeft: "6px", color: "var(--primary-orange)" }}>🔒</span>}
+                      </h3>
+
+                      <p style={{
+                        fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.6",
+                        whiteSpace: isExpanded ? "pre-wrap" : "normal",
+                        display: isExpanded ? "block" : "-webkit-box",
+                        WebkitLineClamp: isExpanded ? "none" : 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: isExpanded ? "auto" : "hidden",
+                        maxHeight: isExpanded ? "200px" : "none",
+                        paddingRight: isExpanded ? "6px" : "0",
+                        margin: 0
+                      }}>
+                        {sanitizeInputText(post.content)}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
 
+                    {/* Sitter ImageUploader (Admin interface when expanded) */}
+                    {isExpanded && isAdmin && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          padding: "0 20px 20px 20px",
+                          borderTop: "1.5px dashed var(--border-light)",
+                          paddingTop: "15px"
+                        }}
+                      >
+                        <ImageUploader
+                          postId={post.id}
+                          userId={activeUser?.id}
+                          isOwnerOrAdmin={true}
+                        />
+                      </div>
+                    )}
+
+                    {/* Card Footer action indicators */}
+                    <div style={{
+                      padding: "12px 20px",
+                      backgroundColor: "var(--bg-primary)",
+                      borderTop: "1px solid var(--border-light)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center"
+                    }}>
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePostCardClick(post);
+                        }}
+                        style={{ 
+                          fontSize: "0.8rem", 
+                          color: "var(--text-muted)",
+                          cursor: "pointer",
+                          fontWeight: "700"
+                        }}
+                      >
+                        {isLocked ? "🔒 클릭하여 회원권 로그인" : isExpanded ? "▲ 접기" : "▼ 클릭하여 전체 읽기"}
+                      </span>
+
+                      {isOwner && (
+                        <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => handleEditPostClick(e, post)}
+                            style={{
+                              backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
+                              border: "none", padding: "4px 10px", borderRadius: "6px",
+                              fontSize: "0.75rem", fontWeight: "700", cursor: "pointer"
+                            }}
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={(e) => handleDeletePost(e, post)}
+                            style={{
+                              backgroundColor: "var(--warning-coral-light)", color: "var(--warning-coral)",
+                              border: "none", padding: "4px 10px", borderRadius: "6px",
+                              fontSize: "0.75rem", fontWeight: "700", cursor: "pointer"
+                            }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })}
             </div>
-          </section>
 
-        </main>
+          </div>
+        </section>
+
+      </main>
 
       {/* ============================================================== */}
       {/* 8. PORTAL VIEW B: 📅 실시간 캘린더 예약 (보호자 채널) */}
       {/* ============================================================== */}
       <main className="animate-fade-in" style={{ flex: 1, padding: "40px 0", display: activePortal === "booking" ? "block" : "none" }}>
-          <div className="container" style={{ maxWidth: "1000px" }}>
+          <div className="container" style={{ maxWidth: bookingSubView === "calculator" ? "1200px" : "1000px" }}>
             
             {bookingSubView === "calculator" ? (
               <>
@@ -4762,6 +4829,7 @@ export default function UnifiedPortal() {
                   area={visitArea === "기타" ? "기타" : "기본"}
                   setArea={handleCalculatorAreaChange}
                   opts={{
+                    preMeeting: optPreMeet,
                     medication: optMedication,
                     forcedFeeding: optForcedFeeding,
                     hospital: optHospital,
@@ -5714,8 +5782,24 @@ export default function UnifiedPortal() {
 
                           <div className="form-group">
                             <label className="form-label">📍 방문 예정 지역 (필수)</label>
-                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "6px" }}>
-                              * 거제 기본 지역(고현, 장평, 상문, 수월, 중곡, 옥포, 아주, 사곡)은 추가금이 없으며, 그 외 지역은 <strong>추가금 +5,000원</strong>이 발생합니다.
+                            <div style={{
+                              fontSize: "0.78rem",
+                              color: "hsl(12, 75%, 45%)", // 선명한 다크 코랄/오렌지 톤
+                              backgroundColor: "rgba(255, 127, 63, 0.08)", // 연한 오렌지 틴트 배경
+                              border: "1px solid rgba(255, 127, 63, 0.25)", // 오렌지 테두리
+                              padding: "10px 14px",
+                              borderRadius: "8px",
+                              marginBottom: "10px",
+                              lineHeight: "1.5",
+                              fontWeight: "600"
+                            }}>
+                              📢 <strong>기본 8개 지역 안내</strong>: 
+                              <span style={{ color: "var(--text-main)", marginLeft: "4px" }}>
+                                고현동, 장평동, 상문동, 수월동, 중곡동, 옥포동, 아주동, 사곡리
+                              </span>
+                              <div style={{ marginTop: "4px", fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: "500" }}>
+                                * 위 기본 지역 외에는 동선과 이동 시간을 고려하여 <strong>추가금 +5,000원</strong>이 발생합니다.
+                              </div>
                             </div>
                             <select
                               className="form-input"
@@ -6650,7 +6734,7 @@ export default function UnifiedPortal() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "30px" }}>
               
               {/* Left Side: 3.1 고객 관리 및 개인정보 보안 저장 (Masked Codes with 30s timer) */}
-              <div style={{ flex: "1 1 450px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div style={{ flex: "1 1 300px", minWidth: "0", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "20px" }}>
                 
                 <h3 style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--text-main)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px", margin: 0 }}>
                   📂 등록 고객 보안 관리대장 (출입코드 30초 한시 공개)
@@ -6793,7 +6877,7 @@ export default function UnifiedPortal() {
                 const existingJournal = careJournals.find(j => Number(j.reservation_id) === Number(sitterReservations[activeReservationIndex]?.id));
                 const hasJournal = !!existingJournal;
                 return (
-                  <div style={{ flex: "1 1 450px", display: "flex", flexDirection: "column", gap: "20px" }}>
+                  <div style={{ flex: "1 1 300px", minWidth: "0", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "20px" }}>
                     
                     <h3 style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--text-main)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px", margin: 0 }}>
                       ✍️ AI 반자동 돌봄 일지 빌더
