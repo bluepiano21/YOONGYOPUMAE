@@ -134,23 +134,25 @@ export default function PricingSection({
           <div
             className="premium-card p-4 md:p-8 w-full"
             style={{
-              background: "linear-gradient(135deg, hsl(215,60%,18%) 0%, hsl(215,70%,26%) 100%)",
-              color: "white", border: "none",
+              background: "linear-gradient(135deg, hsl(266,55%,16%) 0%, hsl(266,45%,24%) 100%)",
+              color: "white",
+              border: "1.5px solid rgba(243, 205, 93, 0.25)",
               margin: "0 auto",
               maxWidth: "520px",
+              boxShadow: "0 12px 36px rgba(100, 40, 180, 0.25), 0 0 0 1px rgba(243, 205, 93, 0.1)",
             }}
           >
-            <h3 style={{ fontSize: "1.05rem", fontWeight: "800", color: "white", marginBottom: "4px" }}>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: "800", color: "#white", marginBottom: "4px" }}>
               🧮 실시간 예상 요금 계산기
             </h3>
-            <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", marginBottom: "24px" }}>
+            <p style={{ fontSize: "0.82rem", color: "hsl(266,60%,92%)", marginBottom: "24px", fontWeight: "500" }}>
               조건을 선택하면 예상 요금이 즉시 계산됩니다.
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
               {/* 방문 일수 스테퍼 */}
               <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "700", color: "rgba(255,255,255,0.8)", marginBottom: "8px" }}>
+                <label style={{ display: "block", fontSize: "0.88rem", fontWeight: "800", color: "#ffffff", marginBottom: "8px" }}>
                   📅 방문 일수
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -163,13 +165,13 @@ export default function PricingSection({
                     onClick={() => setDays(Math.min(30, days + 1))}
                     style={{ width: "36px", height: "36px", borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: "1.2rem", cursor: "pointer" }}
                   >+</button>
-                  <span style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.55)" }}>일</span>
+                  <span style={{ fontSize: "0.9rem", color: "hsl(266,60%,92%)", fontWeight: "700" }}>일</span>
                 </div>
               </div>
 
               {/* 지역 선택 */}
               <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "700", color: "rgba(255,255,255,0.8)", marginBottom: "8px" }}>
+                <label style={{ display: "block", fontSize: "0.88rem", fontWeight: "800", color: "#ffffff", marginBottom: "8px" }}>
                   📍 방문 지역
                 </label>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -184,9 +186,10 @@ export default function PricingSection({
                       title={a.tooltip}
                       style={{
                         flex: 1, padding: "9px 8px", borderRadius: "8px",
-                        border: `1.5px solid ${area === a.val ? "var(--primary-orange)" : "rgba(255,255,255,0.25)"}`,
-                        background: area === a.val ? "var(--primary-orange)" : "rgba(255,255,255,0.08)",
-                        color: "white", fontWeight: "700", fontSize: "0.8rem", cursor: "pointer",
+                        border: `1.5px solid ${area === a.val ? "#F3CD5D" : "rgba(255,255,255,0.25)"}`,
+                        background: area === a.val ? "#F3CD5D" : "rgba(255,255,255,0.08)",
+                        color: area === a.val ? "hsl(270,40%,12%)" : "white",
+                        fontWeight: "800", fontSize: "0.85rem", cursor: "pointer",
                         transition: "all 0.2s ease"
                       }}
                     >
@@ -196,9 +199,9 @@ export default function PricingSection({
                 </div>
                 <div style={{
                   fontSize: "0.76rem",
-                  color: "#ffd98c", // 선명하고 따뜻한 금색/노란색 톤
-                  backgroundColor: "rgba(255, 179, 64, 0.12)", // 연한 엠버 배경
-                  border: "1px solid rgba(255, 179, 64, 0.35)", // 엠버 테두리
+                  color: "#ffd98c",
+                  backgroundColor: "rgba(255, 179, 64, 0.12)",
+                  border: "1px solid rgba(255, 179, 64, 0.35)",
                   padding: "10px 14px",
                   borderRadius: "8px",
                   marginTop: "10px",
@@ -209,7 +212,7 @@ export default function PricingSection({
                   <span style={{ color: "#ffffff", marginLeft: "4px" }}>
                     고현동, 장평동, 상문동, 수월동, 중곡동, 옥포동, 아주동, 사곡리
                   </span>
-                  <div style={{ marginTop: "4px", fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.8)", fontWeight: "500" }}>
+                  <div style={{ marginTop: "4px", fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.95)", fontWeight: "500" }}>
                     * 기본 지역 외에는 동선과 이동 시간을 고려하여 <strong>5,000원의 거리 추가금</strong>이 발생합니다. ✨
                   </div>
                 </div>
@@ -217,7 +220,7 @@ export default function PricingSection({
 
               {/* 추가 옵션 체크박스 */}
               <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "700", color: "rgba(255,255,255,0.8)", marginBottom: "8px" }}>
+                <label style={{ display: "block", fontSize: "0.88rem", fontWeight: "800", color: "#ffffff", marginBottom: "8px" }}>
                   ➕ 추가 서비스
                 </label>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -226,20 +229,37 @@ export default function PricingSection({
                       key={opt.key}
                       style={{
                         display: "flex", alignItems: "center", gap: "10px",
-                        padding: "8px 10px", borderRadius: "8px", cursor: "pointer",
-                        border: `1px solid ${opts[opt.key] ? "var(--primary-orange)" : "rgba(255,255,255,0.15)"}`,
-                        background: opts[opt.key] ? "rgba(255,127,63,0.2)" : "rgba(255,255,255,0.05)",
+                        padding: "8px 12px", borderRadius: "8px", cursor: "pointer",
+                        border: `1.5px solid ${opts[opt.key] ? "var(--gold-border)" : "rgba(255,255,255,0.12)"}`,
+                        background: opts[opt.key] ? "rgba(243, 205, 93, 0.15)" : "rgba(255,255,255,0.04)",
                         transition: "all 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!opts[opt.key]) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!opts[opt.key]) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
+                        }
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={opts[opt.key]}
                         onChange={() => toggleOpt(opt.key)}
-                        style={{ accentColor: "var(--primary-orange)", width: "15px", height: "15px" }}
+                        style={{ accentColor: "#F3CD5D", width: "16px", height: "16px", cursor: "pointer" }}
                       />
-                      <span style={{ fontSize: "0.82rem", fontWeight: "600", color: "white" }}>
-                        {opt.label} {opt.desc && <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.75rem" }}>{opt.desc}</span>} (+{opt.price.toLocaleString()}원)
+                      <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "#ffffff", display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>
+                          {opt.label} {opt.desc && <span style={{ color: "hsl(266,60%,90%)", fontSize: "0.75rem", fontWeight: "500" }}>{opt.desc}</span>}
+                        </span>
+                        <span style={{ color: opts[opt.key] ? "#F3CD5D" : "hsl(266,60%,90%)", fontWeight: "800" }}>
+                          +{opt.price.toLocaleString()}원
+                        </span>
                       </span>
                     </label>
                   ))}
@@ -249,30 +269,35 @@ export default function PricingSection({
               {/* 요금 결과 박스 */}
               <div
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  borderRadius: "12px", border: "1.5px solid rgba(255,255,255,0.2)",
+                  backgroundColor: "rgba(0, 0, 0, 0.2)",
+                  borderRadius: "12px",
+                  border: "1.5px solid rgba(243, 205, 93, 0.3)",
                   padding: "20px",
+                  boxShadow: "inset 0 2px 8px rgba(0,0,0,0.2)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", color: "rgba(255,255,255,0.65)", marginBottom: "6px" }}>
-                  <span>기본요금 (17,000 × {days}일)</span>
-                  <span>{basePrice.toLocaleString()}원</span>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.88rem", color: "hsl(266,60%,92%)", marginBottom: "8px", fontWeight: "600" }}>
+                  <span>기본요금 (17,000원 × {days}일)</span>
+                  <span style={{ color: "#ffffff", fontWeight: "800" }}>{basePrice.toLocaleString()}원</span>
                 </div>
                 {extraPrice > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", color: "rgba(255,255,255,0.65)", marginBottom: "6px" }}>
-                    <span>추가 서비스</span>
-                    <span>+{extraPrice.toLocaleString()}원</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.88rem", color: "hsl(266,60%,92%)", marginBottom: "8px", fontWeight: "600" }}>
+                    <span>추가 서비스 요금</span>
+                    <span style={{ color: "#ffffff", fontWeight: "800" }}>+{extraPrice.toLocaleString()}원</span>
                   </div>
                 )}
                 <div
                   style={{
-                    borderTop: "1px solid rgba(255,255,255,0.2)",
-                    paddingTop: "12px", marginTop: "8px",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    borderTop: "1.5px dashed rgba(243, 205, 93, 0.3)",
+                    paddingTop: "14px",
+                    marginTop: "10px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
                 >
-                  <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "white" }}>예상 총 요금</span>
-                  <strong style={{ fontSize: "1.9rem", fontWeight: "900", color: "var(--primary-orange)" }}>
+                  <span style={{ fontSize: "1.05rem", fontWeight: "850", color: "#F3CD5D", letterSpacing: "-0.3px" }}>예상 요금</span>
+                  <strong style={{ fontSize: "2.1rem", fontWeight: "900", color: "#F3CD5D", textShadow: "0 2px 12px rgba(243, 205, 93, 0.45)", letterSpacing: "-0.5px" }}>
                     {totalPrice.toLocaleString()}원
                   </strong>
                 </div>

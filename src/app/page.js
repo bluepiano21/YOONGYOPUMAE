@@ -7366,7 +7366,7 @@ export default function UnifiedPortal() {
         >
           {isChatOpen
             ? <span style={{ fontSize: "1.1rem", fontWeight: "700", color: "hsl(266,60%,30%)" }}>✕</span>
-            : <img src="/miki_icon.png" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center top" }} />
+            : <img src="/image%20(2).jpg" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center" }} />
           }
         </button>
 
@@ -7408,7 +7408,7 @@ export default function UnifiedPortal() {
                   boxShadow: "0 0 0 3px var(--gold-light), 0 3px 10px rgba(180,140,0,0.2)",
                   flexShrink: 0
                 }}>
-                  <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+                  <img src="/image%20(2).jpg" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }} />
                 </div>
                 <div style={{ textAlign: "left" }}>
                   <strong style={{ display: "block", fontSize: "0.9rem", color: "var(--text-main)", fontWeight: "800" }}>윤교품애 마스코트 미키 도우미</strong>
