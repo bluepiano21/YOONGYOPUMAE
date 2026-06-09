@@ -3,31 +3,46 @@
 :root {
   --font-outfit: 'Outfit', 'Noto Sans KR', sans-serif;
   
-  /* HSL Color Palette */
-  --bg-primary: hsl(38, 45%, 96%); /* 포근한 Warm Cream */
-  --bg-secondary: hsl(0, 0%, 100%); /* 카드 화이트 */
-  --text-main: hsl(215, 60%, 16%); /* 신뢰감을 주는 Deep Navy */
-  --text-muted: hsl(215, 20%, 45%); /* 차분한 그레이 */
-  
-  --primary-orange: hsl(28, 95%, 58%); /* 활기찬 젤리 오렌지 */
-  --primary-orange-hover: hsl(28, 95%, 50%);
-  --primary-orange-light: hsl(28, 100%, 94%);
-  
-  --warning-coral: hsl(12, 85%, 60%); /* 경고용 코랄 레드 */
+  /* ══════════════════════════════════════════
+     🎨 Royal Purple × Satin Gold Premium Theme
+     ══════════════════════════════════════════ */
+
+  /* 배경: 따뜻한 연보라 (Lavender Blush) */
+  --bg-primary: hsl(270, 30%, 97%);
+  --bg-secondary: hsl(0, 0%, 100%);
+
+  /* 텍스트: 짙은 보라 기반 네이비 */
+  --text-main: hsl(270, 40%, 14%);
+  --text-muted: hsl(270, 12%, 48%);
+
+  /* ✦ 메인 포인트: Royal Purple */
+  --primary-orange: hsl(266, 60%, 44%);          /* Royal Purple (구 orange 역할) */
+  --primary-orange-hover: hsl(266, 60%, 36%);    /* 호버 시 더 짙게 */
+  --primary-orange-light: hsl(266, 60%, 95%);    /* 연보라 배경 틴트 */
+
+  /* ✦ 강조 포인트: Satin Gold */
+  --gold: hsl(43, 74%, 49%);                     /* Satin Gold */
+  --gold-hover: hsl(43, 74%, 41%);
+  --gold-light: hsl(43, 100%, 94%);
+  --gold-border: hsl(43, 70%, 62%);
+
+  /* 경고 / 완료 상태 (유지) */
+  --warning-coral: hsl(12, 85%, 60%);
   --warning-coral-light: hsl(12, 100%, 95%);
-  --success-mint: hsl(150, 45%, 40%); /* 완료용 민트 세이지 */
+  --success-mint: hsl(150, 45%, 40%);
   --success-mint-light: hsl(150, 50%, 93%);
-  
-  --border-light: hsl(38, 20%, 88%);
-  --shadow-sm: 0 2px 8px rgba(22, 31, 56, 0.04);
-  --shadow-md: 0 8px 24px rgba(22, 31, 56, 0.08);
-  --shadow-lg: 0 16px 40px rgba(22, 31, 56, 0.12);
-  
+
+  /* 테두리 / 그림자: 연보라 틴트 */
+  --border-light: hsl(266, 20%, 88%);
+  --shadow-sm: 0 2px 8px rgba(60, 20, 90, 0.05);
+  --shadow-md: 0 8px 24px rgba(60, 20, 90, 0.10);
+  --shadow-lg: 0 16px 40px rgba(60, 20, 90, 0.14);
+
   --border-radius-sm: 8px;
   --border-radius-md: 14px;
   --border-radius-lg: 20px;
   --border-radius-full: 9999px;
-  
+
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-fast: all 0.15s ease;
 }
@@ -139,7 +154,7 @@ a {
 .premium-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--primary-orange);
+  border-color: var(--gold-border);
 }
 
 /* Inputs & Form Controls */
@@ -198,7 +213,7 @@ a {
 
 .btn-primary:hover {
   background-color: var(--primary-orange-hover);
-  box-shadow: 0 4px 12px rgba(255, 127, 63, 0.3);
+  box-shadow: 0 4px 12px rgba(100, 40, 180, 0.35);
 }
 
 .btn-primary:disabled {

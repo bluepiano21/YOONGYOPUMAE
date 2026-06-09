@@ -1,7 +1,7 @@
 /* eslint-disable */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Script from "next/script";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import ImageUploader from "../components/ImageUploader";
@@ -216,6 +216,58 @@ export default function UnifiedPortal() {
   // Navigation: 'home' (Yoongyopoomae blog) vs 'booking' (Calendar) vs 'sitter' (Sitter Admin Panel)
   const [activePortal, setActivePortal] = useState("home"); 
   const [bookingSubView, setBookingSubView] = useState("calculator"); // 'calculator' or 'form'
+
+  // --- AI Chatbot States & Handlers ---
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([
+    { id: 1, sender: "bot", text: "안녕하세요! 윤교품애 AI 도우미입니다. 무엇을 도와드릴까요?", time: new Date() }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isBotTyping, setIsBotTyping] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    if (isChatOpen && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, isChatOpen]);
+
+  const handleSendChatMessage = (e) => {
+    if (e) e.preventDefault();
+    const query = chatInput.trim();
+    if (!query) return;
+
+    const userMsgId = Date.now();
+    const newMsg = { id: userMsgId, sender: "user", text: query, time: new Date() };
+    setChatMessages(prev => [...prev, newMsg]);
+    setChatInput("");
+    setIsBotTyping(true);
+
+    // Determine bot response based on keywords
+    let responseText = "👉 죄송합니다. 아직 학습 중인 질문입니다. 😢 더 자세한 문의 사항은 고객센터나 1:1 문의를 이용해 주시면 친절하게 안내해 드리겠습니다.";
+    const queryLower = query.toLowerCase();
+    
+    if (["비용", "요금", "가격", "fee", "얼마"].some(keyword => queryLower.includes(keyword))) {
+      responseText = "👉 윤교품애의 기본 이용 요금은 30분 기준 17,000원입니다. (기본 지역 외에는 거리 추가금 5,000원이 발생합니다.) 오른쪽의 '실시간 예상 요금 계산기'를 이용하시면 추가 서비스까지 포함된 정확한 금액을 즉시 확인하실 수 있어요! ✨";
+    } else if (["지역", "어디", "거제", "동네"].some(keyword => queryLower.includes(keyword))) {
+      responseText = "👉 윤교품애는 고현동, 장평동, 상문동, 수월동, 중곡동, 옥포동, 아주동, 사곡리 총 8개 지역을 기본 지역으로 돌봄 서비스를 제공하고 있습니다. 그 외 지역은 이동 시간에 따라 5,000원의 거리 추가금이 발생할 수 있으니 참고해 주세요! 🗺️";
+    } else if (["반려동물", "강아지", "고양이", "동물", "종류"].some(keyword => queryLower.includes(keyword))) {
+      responseText = "👉 윤교품애는 소중한 반려견(강아지)과 반려묘(고양이) 모두 정성껏 돌봐드립니다! 사전만남을 통해 아이의 성향과 특이사항을 꼼꼼히 파악한 후 맞춤 돌봄을 진행하니 안심하고 맡겨주세요. 🐶🐱";
+    } else if (["예약", "일정", "날짜"].some(keyword => queryLower.includes(keyword))) {
+      responseText = "👉 돌봄 예약은 왼쪽의 '돌봄 일정표'에서 원하시는 날짜를 선택하여 진행하실 수 있습니다. 오늘 이전 날짜는 선택이 불가능하니 참고해 주세요! 📅";
+    }
+
+    // Mock response after 3 seconds
+    setTimeout(() => {
+      setChatMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        sender: "bot",
+        text: responseText,
+        time: new Date()
+      }]);
+      setIsBotTyping(false);
+    }, 3000);
+  };
 
   const handleGoToBooking = () => {
     setActivePortal("booking");
@@ -1281,14 +1333,14 @@ export default function UnifiedPortal() {
           </div>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
+            display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
             textAlign: "center", fontWeight: "700", fontSize: "0.8rem",
             color: "var(--text-muted)", marginBottom: "10px"
           }}>
             {["일", "월", "화", "수", "목", "금", "토"].map(d => <span key={d}>{d}</span>)}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "clamp(3px, 1vw, 8px)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "clamp(3px, 1vw, 8px)" }}>
             {calendarGridDays.map((dayObj, index) => {
               const isSelected = selectedDate && dayObj.date && selectedDate.toDateString() === dayObj.date.toDateString();
               const fullyBooked = dayObj.date ? isDateFullyBooked(dayObj.date) : false;
@@ -1326,7 +1378,15 @@ export default function UnifiedPortal() {
                     boxShadow: isSelected ? "0 4px 10px rgba(255, 112, 67, 0.25)" : "none"
                   }}
                 >
-                  <span>{dayObj.day}</span>
+                  <span style={{
+                    fontSize: "clamp(0.75rem, 1.5vw, 0.85rem)",
+                    fontWeight: "800",
+                    color: "inherit",
+                    flexShrink: 0,
+                    marginBottom: "2px"
+                  }}>
+                    {dayObj.day}
+                  </span>
                   {dayObj.date && dayObj.date.toDateString() === new Date().toDateString() && !fullyBooked && (
                     <span style={{ fontSize: "0.6rem", color: isSelected ? "white" : "var(--primary-orange)", marginBottom: "2px" }}>오늘</span>
                   )}
@@ -6296,7 +6356,7 @@ export default function UnifiedPortal() {
 
                 {/* 요일 헤더 */}
                 <div style={{
-                  display: "grid", gridTemplateColumns: "repeat(7, 1fr)",
+                  display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
                   textAlign: "center", fontWeight: "700", fontSize: "clamp(0.65rem, 1.5vw, 0.8rem)",
                   color: "var(--text-muted)", marginBottom: "10px"
                 }}>
@@ -6304,7 +6364,7 @@ export default function UnifiedPortal() {
                 </div>
 
                 {/* 날짜 그리드 */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "clamp(2px, 0.8vw, 8px)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "clamp(2px, 0.8vw, 8px)" }}>
                   {calendarGridDays.map((dayObj, index) => {
                     if (!dayObj.day || !dayObj.date) {
                       return <div key={index} style={{ minHeight: "clamp(50px, 8vw, 80px)", backgroundColor: "var(--bg-primary)", opacity: 0.35, borderRadius: "4px" }} />;
@@ -7271,6 +7331,214 @@ export default function UnifiedPortal() {
       {/* Toss Payments SDK script loader */}
       {/* afterInteractive: 페이지 하이드레이션 직후 로드 → 결제 버튼 클릭 전 SDK 준비 완료 보장 */}
       <Script src="https://js.tosspayments.com/v1/payment" strategy="afterInteractive" />
+
+      {/* AI Chatbot Float Button & Popup Panel */}
+      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 1000 }}>
+        {/* Chatbot Toggle Button */}
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          style={{
+            width: "56px",
+            height: "56px",
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, var(--primary-orange) 0%, hsl(12, 85%, 60%) 100%)",
+            color: "white",
+            border: "none",
+            boxShadow: "0 8px 24px rgba(255, 112, 67, 0.4)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "1.6rem",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            transform: isChatOpen ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = isChatOpen ? "rotate(90deg) scale(1.08)" : "scale(1.08)";
+            e.currentTarget.style.boxShadow = "0 10px 28px rgba(255, 112, 67, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = isChatOpen ? "rotate(90deg) scale(1)" : "scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 112, 67, 0.4)";
+          }}
+        >
+          {isChatOpen ? "✕" : "🤖"}
+        </button>
+
+        {/* Chatbot Window (Popup Panel) */}
+        {isChatOpen && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "72px",
+              right: "0",
+              width: "360px",
+              height: "500px",
+              backgroundColor: "white",
+              borderRadius: "20px",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border-light)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              animation: "fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "16px 20px",
+                background: "linear-gradient(135deg, hsl(215,60%,18%) 0%, hsl(215,70%,26%) 100%)",
+                color: "white",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "1.4rem" }}>🤖</span>
+                <div style={{ textAlign: "left" }}>
+                  <strong style={{ display: "block", fontSize: "0.95rem", color: "white" }}>윤교품애 AI 도우미</strong>
+                  <span style={{ fontSize: "0.72rem", color: "var(--success-mint)", fontWeight: "600" }}>● 실시간 가상 지원 중</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsChatOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.1rem",
+                  cursor: "pointer",
+                  opacity: 0.8,
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chat Messages Body */}
+            <div
+              style={{
+                flex: 1,
+                padding: "20px",
+                overflowY: "auto",
+                backgroundColor: "var(--bg-primary)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              {chatMessages.map((msg) => {
+                const isBot = msg.sender === "bot";
+                return (
+                  <div
+                    key={msg.id}
+                    style={{
+                      alignSelf: isBot ? "flex-start" : "flex-end",
+                      maxWidth: "80%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: isBot ? "flex-start" : "flex-end",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: isBot ? "16px 16px 16px 4px" : "16px 16px 4px 16px",
+                        backgroundColor: isBot ? "white" : "var(--primary-orange)",
+                        color: isBot ? "var(--text-main)" : "white",
+                        fontSize: "0.85rem",
+                        fontWeight: "600",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                        border: isBot ? "1px solid var(--border-light)" : "none",
+                        lineHeight: "1.4",
+                        wordBreak: "break-word",
+                        textAlign: "left",
+                      }}
+                    >
+                      {msg.text}
+                    </div>
+                    <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                      {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Bot Typing Indicator */}
+              {isBotTyping && (
+                <div style={{ alignSelf: "flex-start", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "16px 16px 16px 4px",
+                      backgroundColor: "white",
+                      border: "1px solid var(--border-light)",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                      🤖 AI가 생각하는 중...
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Form Footer */}
+            <form
+              onSubmit={handleSendChatMessage}
+              style={{
+                padding: "12px 16px",
+                borderTop: "1px solid var(--border-light)",
+                backgroundColor: "white",
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="질문을 입력하세요..."
+                style={{
+                  flex: 1,
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1.5px solid var(--border-light)",
+                  fontSize: "0.85rem",
+                  outline: "none",
+                  fontFamily: "var(--font-outfit)",
+                }}
+                onFocus={(e) => e.target.style.borderColor = "var(--primary-orange)"}
+                onBlur={(e) => e.target.style.borderColor = "var(--border-light)"}
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim()}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  backgroundColor: !chatInput.trim() ? "var(--border-light)" : "var(--primary-orange)",
+                  color: "white",
+                  border: "none",
+                  fontSize: "0.85rem",
+                  fontWeight: "700",
+                  cursor: !chatInput.trim() ? "not-allowed" : "pointer",
+                  transition: "var(--transition-fast)",
+                }}
+              >
+                전송
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
