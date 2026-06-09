@@ -220,7 +220,7 @@ export default function UnifiedPortal() {
   // --- AI Chatbot States & Handlers ---
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([
-    { id: 1, sender: "bot", text: "안녕하세요! 윤교품애 AI 도우미입니다. 무엇을 도와드릴까요?", time: new Date() }
+    { id: 1, sender: "bot", text: "안녕하세요! 소중한 아이를 위한 프리미엄 케어, '윤교품애'의 마스코트 고양이 미키입니다. 😸 무엇을 도와드릴까요? 요금, 지역, 예약 방법 등 궁금하신 점을 말씀해 주세요!", time: new Date() }
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isBotTyping, setIsBotTyping] = useState(false);
@@ -4176,19 +4176,19 @@ export default function UnifiedPortal() {
           <div className="desktop-nav" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
             {/* Top Tabs - Merged client HTML site & NextJS Portal */}
             <div style={{
-              display: "flex", 
-              backgroundColor: "var(--success-mint-light)",
+              display: "flex",
+              backgroundColor: "var(--primary-orange-light)",
               padding: "5px",
-              borderRadius: "var(--border-radius-full)", 
-              border: "1.5px solid hsl(150, 30%, 75%)",
-              boxShadow: "0 8px 24px rgba(22, 31, 56, 0.08)"
+              borderRadius: "var(--border-radius-full)",
+              border: "1.5px solid var(--gold-border)",
+              boxShadow: "0 6px 20px rgba(100,40,180,0.10), 0 1px 0 var(--gold-light) inset"
             }}>
               <button
                 id="demo-home-tab-btn"
                 onClick={() => setActivePortal("home")}
                 style={{
                   border: "none", background: activePortal === "home" ? "var(--primary-orange)" : "transparent",
-                  color: activePortal === "home" ? "white" : "hsl(150, 50%, 25%)",
+                  color: activePortal === "home" ? "white" : "var(--gold)",
                   padding: "8px 18px", borderRadius: "var(--border-radius-full)",
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
@@ -4200,7 +4200,7 @@ export default function UnifiedPortal() {
                 onClick={() => setActivePortal("posts")}
                 style={{
                   border: "none", background: activePortal === "posts" ? "var(--primary-orange)" : "transparent",
-                  color: activePortal === "posts" ? "white" : "hsl(150, 50%, 25%)",
+                  color: activePortal === "posts" ? "white" : "var(--gold)",
                   padding: "8px 18px", borderRadius: "var(--border-radius-full)",
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
@@ -4215,7 +4215,7 @@ export default function UnifiedPortal() {
                 }}
                 style={{
                   border: "none", background: activePortal === "booking" ? "var(--primary-orange)" : "transparent",
-                  color: activePortal === "booking" ? "white" : "hsl(150, 50%, 25%)",
+                  color: activePortal === "booking" ? "white" : "var(--gold)",
                   padding: "8px 18px", borderRadius: "var(--border-radius-full)",
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
@@ -4235,7 +4235,7 @@ export default function UnifiedPortal() {
                 }}
                 style={{
                   border: "none", background: activePortal === "sitter" ? "var(--primary-orange)" : "transparent",
-                  color: activePortal === "sitter" ? "white" : "hsl(150, 50%, 25%)",
+                  color: activePortal === "sitter" ? "white" : "var(--gold)",
                   padding: "8px 18px", borderRadius: "var(--border-radius-full)",
                   fontSize: "0.85rem", fontWeight: "750", cursor: "pointer", transition: "var(--transition-fast)"
                 }}
@@ -4402,8 +4402,8 @@ export default function UnifiedPortal() {
           
           {/* Hero Section from index.html (Synthesized with Outfit styling) */}
           <section className="p-6 md:p-12" style={{
-            background: "linear-gradient(135deg, hsl(38, 100%, 95%) 0%, hsl(150, 50%, 96%) 100%)",
-            borderBottom: "1px solid var(--border-light)"
+            background: "linear-gradient(135deg, hsl(270,30%,97%) 0%, hsl(266,30%,94%) 50%, hsl(43,60%,97%) 100%)",
+            borderBottom: "2px solid var(--gold-border)"
           }}>
             <div className="container hero-container" style={{
               display: "grid",
@@ -4438,12 +4438,13 @@ export default function UnifiedPortal() {
                 }}>
                   <span style={{
                     width: "10px", height: "10px", borderRadius: "50%",
-                    backgroundColor: isLoggedIn ? "var(--success-mint)" : "var(--primary-orange)",
-                    display: "inline-block"
+                    backgroundColor: isLoggedIn ? "var(--gold)" : "var(--primary-orange)",
+                    display: "inline-block",
+                    boxShadow: isLoggedIn ? "0 0 6px 2px rgba(212,175,55,0.55)" : "none"
                   }}></span>
                   <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--text-main)" }}>
                     {isLoggedIn && activeUser ? (
-                      <>현재 <strong style={{ color: "var(--success-mint)" }}>{activeUser.full_name} ({activeUser.role.toUpperCase()})</strong> 로그인 상태입니다.</>
+                      <>현재 <strong style={{ color: "var(--gold)" }}>{activeUser.full_name} ({activeUser.role.toUpperCase()})</strong> 로그인 상태입니다.</>
                     ) : (
                       <>현재 <strong style={{ color: "var(--primary-orange)" }}>비회원</strong> 상태입니다. (VIP 전용 글 잠금 작동)</>
                     )}
@@ -7338,31 +7339,35 @@ export default function UnifiedPortal() {
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
           style={{
-            width: "56px",
-            height: "56px",
+            width: "60px",
+            height: "60px",
             borderRadius: "50%",
-            background: "linear-gradient(135deg, var(--primary-orange) 0%, hsl(12, 85%, 60%) 100%)",
-            color: "white",
-            border: "none",
-            boxShadow: "0 8px 24px rgba(255, 112, 67, 0.4)",
+            background: "linear-gradient(135deg, var(--gold) 0%, hsl(43,80%,60%) 100%)",
+            color: "hsl(266,60%,30%)",
+            border: "2.5px solid hsl(43,70%,75%)",
+            boxShadow: "0 6px 22px rgba(180,140,0,0.4), 0 0 0 4px var(--gold-light)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "1.6rem",
+            fontSize: isChatOpen ? "1.1rem" : "0",
+            overflow: "hidden",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            transform: isChatOpen ? "rotate(90deg)" : "rotate(0deg)",
+            padding: "0",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = isChatOpen ? "rotate(90deg) scale(1.08)" : "scale(1.08)";
-            e.currentTarget.style.boxShadow = "0 10px 28px rgba(255, 112, 67, 0.5)";
+            e.currentTarget.style.boxShadow = "0 10px 28px rgba(180,140,0,0.55), 0 0 0 5px var(--gold-light)";
+            e.currentTarget.style.transform = "scale(1.08)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = isChatOpen ? "rotate(90deg) scale(1)" : "scale(1)";
-            e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 112, 67, 0.4)";
+            e.currentTarget.style.boxShadow = "0 6px 22px rgba(180,140,0,0.4), 0 0 0 4px var(--gold-light)";
+            e.currentTarget.style.transform = "scale(1)";
           }}
         >
-          {isChatOpen ? "✕" : "🤖"}
+          {isChatOpen
+            ? <span style={{ fontSize: "1.1rem", fontWeight: "700", color: "hsl(266,60%,30%)" }}>✕</span>
+            : <img src="/miki_icon.png" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center top" }} />
+          }
         </button>
 
         {/* Chatbot Window (Popup Panel) */}
@@ -7387,19 +7392,27 @@ export default function UnifiedPortal() {
             {/* Header */}
             <div
               style={{
-                padding: "16px 20px",
-                background: "linear-gradient(135deg, hsl(215,60%,18%) 0%, hsl(215,70%,26%) 100%)",
-                color: "white",
+                padding: "14px 18px",
+                background: "linear-gradient(135deg, hsl(270,30%,97%) 0%, hsl(266,40%,94%) 60%, hsl(43,50%,96%) 100%)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                borderBottom: "2px solid var(--gold-border)",
+                boxShadow: "0 2px 8px rgba(100,40,180,0.07)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "1.4rem" }}>🤖</span>
+                <div style={{
+                  width: "44px", height: "44px", borderRadius: "50%",
+                  overflow: "hidden", border: "2.5px solid var(--gold-border)",
+                  boxShadow: "0 0 0 3px var(--gold-light), 0 3px 10px rgba(180,140,0,0.2)",
+                  flexShrink: 0
+                }}>
+                  <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+                </div>
                 <div style={{ textAlign: "left" }}>
-                  <strong style={{ display: "block", fontSize: "0.95rem", color: "white" }}>윤교품애 AI 도우미</strong>
-                  <span style={{ fontSize: "0.72rem", color: "var(--success-mint)", fontWeight: "600" }}>● 실시간 가상 지원 중</span>
+                  <strong style={{ display: "block", fontSize: "0.9rem", color: "var(--text-main)", fontWeight: "800" }}>윤교품애 마스코트 미키 도우미</strong>
+                  <span style={{ fontSize: "0.7rem", color: "var(--gold)", fontWeight: "700" }}>🔔 온라인 · 가상 AI 지원 중</span>
                 </div>
               </div>
               <button
@@ -7407,13 +7420,13 @@ export default function UnifiedPortal() {
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "white",
+                  color: "var(--text-muted)",
                   fontSize: "1.1rem",
                   cursor: "pointer",
-                  opacity: 0.8,
+                  opacity: 0.7,
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = 0.8}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
               >
                 ✕
               </button>
@@ -7448,12 +7461,12 @@ export default function UnifiedPortal() {
                       style={{
                         padding: "10px 14px",
                         borderRadius: isBot ? "16px 16px 16px 4px" : "16px 16px 4px 16px",
-                        backgroundColor: isBot ? "white" : "var(--primary-orange)",
-                        color: isBot ? "var(--text-main)" : "white",
+                        backgroundColor: isBot ? "white" : "var(--gold)",
+                        color: isBot ? "var(--text-main)" : "hsl(270,40%,12%)",
                         fontSize: "0.85rem",
                         fontWeight: "600",
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                        border: isBot ? "1px solid var(--border-light)" : "none",
+                        boxShadow: isBot ? "0 2px 6px rgba(0,0,0,0.03)" : "0 3px 10px rgba(180,130,0,0.25)",
+                        border: isBot ? "1px solid var(--border-light)" : "1.5px solid var(--gold-border)",
                         lineHeight: "1.4",
                         wordBreak: "break-word",
                         textAlign: "left",
