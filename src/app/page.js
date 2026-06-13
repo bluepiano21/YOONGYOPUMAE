@@ -40,6 +40,51 @@ const DEMO_USERS = {
   }
 };
 
+const FAQ_LIST = [
+  {
+    id: "faq_difference",
+    question: "Q1. 일반 펫시터 서비스와 '윤교품애'는 어떤 점이 다른가요? 🐱",
+    answer: "👉 '윤교품애'는 단순한 시간 때우기식 돌봄이 아닌, 아이의 삶의 질을 높이는 프리미엄 요양 케어에 집중합니다. 노령펫 케어, 반려동물 식품관리사, 펫시터 1급, 펫푸드 스타일리스트, 아로마 기초 강사 등 전문 자격증을 보유한 전문가가 아이의 상태(수술 후 회복, 노령 케어, 약 복용 등)에 맞춰 1:1 맞춤형 케어를 제공합니다. 🎓",
+    keywords: ["차이", "다른 점", "차별", "일반 펫시터", "다르", "전문성", "자격증"]
+  },
+  {
+    id: "faq_recovery",
+    question: "Q2. 수술을 마친 지 얼마 안 되었거나 매일 약을 먹어야 하는데 케어가 가능한가요? 💊",
+    answer: "👉 네, 당연히 가능합니다! 수술 후 안정이 필요한 아이, 격리 및 스트레스 케어가 필요한 아이, 정해진 시간에 약 복용 및 영양 관리가 필요한 아이들을 위한 전문 케어 프로그램을 갖추고 있습니다. 아이의 기존 처방과 주의사항을 전달해 주시면 스케줄에 맞춰 안전하게 관리합니다. 🏥",
+    keywords: ["수술", "약", "복용", "투약", "의료", "요양", "환자", "아픈", "처방"]
+  },
+  {
+    id: "faq_checking",
+    question: "Q3. 돌봄 시간 동안 아이가 어떻게 지내고 있는지 확인할 수 있나요? 📸",
+    answer: "👉 보호자님의 불안한 마음을 잘 알고 있습니다. '윤교품애'는 돌봄이 시작되면 실시간으로 아이의 상태, 식사 및 약 복용 여부, 컨디션 등을 사진/동영상과 함께 정기적으로 메시지를 통해 공유해 드립니다. 출근이나 여행 중에도 안심하고 확인하실 수 있습니다. 📱",
+    keywords: ["확인", "실시간", "일지", "사진", "동영상", "연락", "공유", "메시지"]
+  },
+  {
+    id: "faq_process",
+    question: "Q4. 예약은 어떻게 진행되나요? 당일 예약도 가능한가요? 📅",
+    answer: "👉 예약은 [상담 신청] ➡️ [아이 성향 및 건강 상태 확인] ➡️ [스케줄 확정 및 결제] 순으로 진행됩니다. 아이 맞춤형 케어를 위한 사전 준비가 필요하므로 최소 2~3일 전에 예약해 주시는 것을 권장해 드립니다. 당일 예약의 경우 스케줄 가능 여부에 따라 제한될 수 있으니 챗봇 상담을 통해 먼저 문의해 주세요! 🔔",
+    keywords: ["예약", "당일", "신청", "절차", "방법", "스케줄"]
+  },
+  {
+    id: "faq_cancel_change",
+    question: "Q5. 예약을 취소하거나 일정을 변경하고 싶을 때는 어떻게 하나요? 🛠️",
+    answer: "👉 일정 변경 및 취소는 예약일 기준 3일 전까지 홈페이지 내 '나의 예약' 메뉴 또는 챗봇을 통해 수수료 없이 가능합니다. 당일 취소나 하루 전 취소의 경우, 다른 아이들의 예약 기회와 스케줄 조율을 위해 소정의 취소 수수료가 발생할 수 있으니 양해 부탁드립니다. ⚠️",
+    keywords: ["취소", "변경", "수수료", "환불", "일정 변경", "나의 예약"]
+  },
+  {
+    id: "faq_shyness",
+    question: "Q6. 첫 이용인데, 아이가 낯가림이 심해요. 적응 기간이나 사전 미팅이 있나요? 🤝",
+    answer: "👉 낯선 환경이나 사람에게 스트레스를 많이 받는 아이들을 위해, 본격적인 돌봄 전 아이의 성향을 파악하는 사전 상담 및 성향 파악 과정을 거칩니다. 아이가 가장 좋아하는 장난감, 간식, 평소 습관 등을 미리 말씀해 주시면 아이가 편안함을 느낄 수 있도록 최선을 다해 배려하겠습니다. 💕",
+    keywords: ["낯가림", "사전", "미팅", "적응", "만남", "성향", "스트레스"]
+  },
+  {
+    id: "faq_nursing_rates",
+    question: "Q7. 방문형 요양 서비스 항목과 요금이 어떻게 되나요? 💰",
+    answer: "윤교품애의 프리미엄 [방문형 요양 서비스] 요금 안내입니다. 🐾\n\n🔸 기본 방문 요양 (30,000원)\n1일 1회 방문 (30~40분)\n식사, 배변 케어, 정서 교감, 투약 포함\n\n🔸 집중 방문 요양 (55,000원)\n1일 2회 방문\n고령 동물 및 수술 후 질병 회복기 아이 전용\n\n🔸 투약 전용 서비스 (15,000원)\n단독 투약 방문 (가루약/알약 복용, 안약 점안 등)\n\n🔸 주간/월간 패키지 (별도 안내)\n주 3회 이상 정기 이용 시 특별 할인 적용\n\n📍 거제 전 지역 기본 운영되나, 외곽 지역(장승포 등)은 거리별 교통비(5,000원~)가 별도 부과되는 점 양해 부탁드립니다.\n\n우리 아이 맞춤형 상담을 원하시면 언제든 말씀해 주세요",
+    keywords: ["요금", "가격", "방문형 요양", "항목", "요금표", "비용"]
+  }
+];
+
 // 6 Core posts from index.html (script.js) mapped with category & restriction flags
 const STATIC_BLOG_POSTS = [
   {
@@ -216,48 +261,136 @@ export default function UnifiedPortal() {
   // Navigation: 'home' (Yoongyopoomae blog) vs 'booking' (Calendar) vs 'sitter' (Sitter Admin Panel)
   const [activePortal, setActivePortal] = useState("home"); 
   const [bookingSubView, setBookingSubView] = useState("calculator"); // 'calculator' or 'form'
+  const [bookingServiceChoice, setBookingServiceChoice] = useState("general"); // 'general' or 'nursing'
+  const [nursingPlan, setNursingPlan] = useState("basic"); // 'basic', 'intensive', 'medication', 'package'
 
-  // --- AI Chatbot States & Handlers ---
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  // --- AI Chatbot Drag: ref 기반 직접 DOM 조작 (React state 미사용 → 60fps 부드러운 드래그) ---
+  const chatWindowRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+
+  // 챗봇 창 초기 위치 (화면 우하단 기준)
+  const chatInitPos = useRef({ right: 24, bottom: 92 }); // fixed 기준 초기값
+
+  const handleDragStart = (e) => {
+    // 닫기 버튼 등 button 클릭 시 드래그 무시
+    if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
+    e.preventDefault();
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const win = chatWindowRef.current;
+    if (!win) return;
+
+    const rect = win.getBoundingClientRect();
+    isDraggingRef.current = true;
+    dragOffsetRef.current = {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+
+    const onMove = (ev) => {
+      if (!isDraggingRef.current) return;
+      ev.preventDefault();
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      const newLeft = cx - dragOffsetRef.current.x;
+      const newTop  = cy - dragOffsetRef.current.y;
+      // 화면 경계 제한
+      const maxLeft = window.innerWidth  - win.offsetWidth;
+      const maxTop  = window.innerHeight - win.offsetHeight;
+      win.style.left   = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+      win.style.top    = `${Math.max(0, Math.min(newTop,  maxTop))}px`;
+      win.style.right  = "auto";
+      win.style.bottom = "auto";
+    };
+
+    const onUp = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup",   onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend",  onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend",  onUp);
+  };
+
   const [chatMessages, setChatMessages] = useState([
-    { id: 1, sender: "bot", text: "안녕하세요! 소중한 아이를 위한 프리미엄 케어, '윤교품애'의 마스코트 고양이 미키입니다. 😸 무엇을 도와드릴까요? 요금, 지역, 예약 방법 등 궁금하신 점을 말씀해 주세요!", time: new Date() }
+    { id: 1, sender: "bot", text: "안녕하세요! 소중한 아이를 위한 프리미엄 케어, '윤교품애'의 마스코트 고양이 미키입니다. 😸 무엇을 도와드릴까요? 요금, 지역, 예약 방법 등 궁금하신 점을 말씀해 주세요!", time: new Date() },
+    { id: 2, sender: "bot", text: "🐾 현재 '윤교품애'는 고양이 전문 돌봄 서비스를 우선 제공하고 있으며, 더욱 많은 아이들과 만나기 위해 강아지를 위한 프리미엄 케어 서비스도 열심히 준비 중에 있습니다! 조금만 기다려 주세요", time: new Date() }
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isBotTyping, setIsBotTyping] = useState(false);
   const messagesEndRef = useRef(null);
+  const chatBodyRef = useRef(null);
 
   useEffect(() => {
-    if (isChatOpen && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (isChatOpen && chatMessages.length > 0) {
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      setTimeout(() => {
+        const container = chatBodyRef.current;
+        const el = document.getElementById(`chat-message-${lastMsg.id}`);
+        if (container && el) {
+          if (lastMsg.sender === "bot") {
+            const targetScrollTop = el.offsetTop - 10;
+            container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+          } else {
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+          }
+        }
+      }, 150);
     }
   }, [chatMessages, isChatOpen]);
 
-  const handleSendChatMessage = (e) => {
+  const handleSendChatMessage = (e, customQuery) => {
     if (e) e.preventDefault();
-    const query = chatInput.trim();
+    const query = customQuery || chatInput.trim();
     if (!query) return;
 
     const userMsgId = Date.now();
     const newMsg = { id: userMsgId, sender: "user", text: query, time: new Date() };
     setChatMessages(prev => [...prev, newMsg]);
-    setChatInput("");
+    if (!customQuery) setChatInput("");
     setIsBotTyping(true);
 
-    // Determine bot response based on keywords
+    // Determine bot response based on FAQ_LIST
     let responseText = "👉 죄송합니다. 아직 학습 중인 질문입니다. 😢 더 자세한 문의 사항은 고객센터나 1:1 문의를 이용해 주시면 친절하게 안내해 드리겠습니다.";
     const queryLower = query.toLowerCase();
-    
-    if (["비용", "요금", "가격", "fee", "얼마"].some(keyword => queryLower.includes(keyword))) {
-      responseText = "👉 윤교품애의 기본 이용 요금은 30분 기준 17,000원입니다. (기본 지역 외에는 거리 추가금 5,000원이 발생합니다.) 오른쪽의 '실시간 예상 요금 계산기'를 이용하시면 추가 서비스까지 포함된 정확한 금액을 즉시 확인하실 수 있어요! ✨";
-    } else if (["지역", "어디", "거제", "동네"].some(keyword => queryLower.includes(keyword))) {
-      responseText = "👉 윤교품애는 고현동, 장평동, 상문동, 수월동, 중곡동, 옥포동, 아주동, 사곡리 총 8개 지역을 기본 지역으로 돌봄 서비스를 제공하고 있습니다. 그 외 지역은 이동 시간에 따라 5,000원의 거리 추가금이 발생할 수 있으니 참고해 주세요! 🗺️";
-    } else if (["반려동물", "강아지", "고양이", "동물", "종류"].some(keyword => queryLower.includes(keyword))) {
-      responseText = "👉 윤교품애는 소중한 반려견(강아지)과 반려묘(고양이) 모두 정성껏 돌봐드립니다! 사전만남을 통해 아이의 성향과 특이사항을 꼼꼼히 파악한 후 맞춤 돌봄을 진행하니 안심하고 맡겨주세요. 🐶🐱";
-    } else if (["예약", "일정", "날짜"].some(keyword => queryLower.includes(keyword))) {
-      responseText = "👉 돌봄 예약은 왼쪽의 '돌봄 일정표'에서 원하시는 날짜를 선택하여 진행하실 수 있습니다. 오늘 이전 날짜는 선택이 불가능하니 참고해 주세요! 📅";
+
+    // 1. First try direct matching on the question text (ideal for button clicks)
+    let matchedFaq = FAQ_LIST.find(faq =>
+      queryLower.includes(faq.question.toLowerCase()) ||
+      faq.question.toLowerCase().includes(queryLower)
+    );
+
+    // 2. If not matched, fall back to keyword checking with safe boundaries
+    if (!matchedFaq) {
+      matchedFaq = FAQ_LIST.find(faq =>
+        faq.keywords.some(keyword => {
+          if (!queryLower.includes(keyword)) return false;
+
+          // Special case: prevent "약" in "예약" from triggering "투약/약" FAQ (Q2)
+          if (keyword === "약") {
+            const yeyakCount = (queryLower.match(/예약/g) || []).length;
+            const yakCount = (queryLower.match(/약/g) || []).length;
+            return yakCount > yeyakCount;
+          }
+
+          return true;
+        })
+      );
     }
 
-    // Mock response after 3 seconds
+    if (matchedFaq) {
+      responseText = matchedFaq.answer;
+    }
+
+    // Mock response after 800ms to feel natural and responsive
     setTimeout(() => {
       setChatMessages(prev => [...prev, {
         id: Date.now() + 1,
@@ -266,12 +399,20 @@ export default function UnifiedPortal() {
         time: new Date()
       }]);
       setIsBotTyping(false);
-    }, 3000);
+    }, 800);
   };
 
   const handleGoToBooking = () => {
     setActivePortal("booking");
     setBookingSubView("form");
+    if (bookingServiceChoice === "nursing") {
+      if (nursingPlan === "basic") setServiceType("방문 요양 (기본)");
+      else if (nursingPlan === "intensive") setServiceType("방문 요양 (집중)");
+      else if (nursingPlan === "medication") setServiceType("방문 요양 (투약 전용)");
+      else if (nursingPlan === "package") setServiceType("방문 요양 (패키지)");
+    } else {
+      setServiceType("방문 돌봄");
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }; 
 
@@ -588,16 +729,20 @@ export default function UnifiedPortal() {
 
   // Dynamic price calculator based on new pricing policies
   const calculateBookingPrice = () => {
-    const base = 17000;
+    let base = 17000;
+    if (bookingServiceChoice === "nursing") {
+      if (nursingPlan === "basic") base = 30000;
+      else if (nursingPlan === "intensive") base = 55000;
+      else if (nursingPlan === "medication") base = 15000;
+      else if (nursingPlan === "package") base = 0;
+    }
     let extra = 0;
     
     if (isHoliday) extra += 5000;
     if (optPreMeet) extra += 10000;
-    if (optMedication) extra += 5000;
     if (optForcedFeeding) extra += 10000;
     if (optHospital) extra += 20000;
     if (optDogAdd) extra += 8000;
-    if (optTwoVisits) extra += 13000;
     if (visitArea === "기타") extra += 5000;
     
     const daysMultiplier = bookingType === "multi" ? getMultiDaysCount() : 1;
@@ -651,10 +796,8 @@ export default function UnifiedPortal() {
 
   const toggleCalculatorOpt = (key) => {
     if (key === "preMeeting") setOptPreMeet((prev) => !prev);
-    else if (key === "medication") setOptMedication((prev) => !prev);
     else if (key === "forcedFeeding") setOptForcedFeeding((prev) => !prev);
     else if (key === "hospital") setOptHospital((prev) => !prev);
-    else if (key === "twoVisits") setOptTwoVisits((prev) => !prev);
     else if (key === "holiday") setIsHoliday((prev) => !prev);
   };
 
@@ -896,14 +1039,7 @@ export default function UnifiedPortal() {
     }
   }, []);
 
-  // Handle fallback hero image loading check (prevents React 19 image preload issues)
-  useEffect(() => {
-    const img = new Image();
-    img.src = "/hero.png";
-    img.onerror = () => {
-      setHeroImageSrc("https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=max&q=80&w=800");
-    };
-  }, []);
+
 
   // Timer Countdown loop for Masked Security Codes
   useEffect(() => {
@@ -1786,11 +1922,9 @@ export default function UnifiedPortal() {
       const selectedOptions = [];
       if (isHoliday) selectedOptions.push("공휴일/명절 할증 (+5,000원)");
       if (optPreMeet) selectedOptions.push("사전 만남 (+10,000원)");
-      if (optMedication) selectedOptions.push("투약 1회 (+5,000원)");
       if (optForcedFeeding) selectedOptions.push("급여도움(강제급여) (+10,000원)");
       if (optHospital) selectedOptions.push("병원 방문 1회 (+20,000원)");
       if (optDogAdd) selectedOptions.push("강아지 1마리 추가 (+8,000원)");
-      if (optTwoVisits) selectedOptions.push("1일 2회 방문 (+13,000원)");
       if (!isReturningCustomer && visitArea === "기타") selectedOptions.push("외 지역 추가요금 (+5,000원)");
 
       // Resolve multi-date list
@@ -1819,7 +1953,12 @@ export default function UnifiedPortal() {
           : `${bookingTimeText} (방문 조율 가능)`,
         petName: petName,
         petAge: bookingType === "single" ? `${petAge}살` : `${petCount}마리`,
-        serviceType: "기본 돌봄 (1일 1회 약 30분)",
+        serviceType: bookingServiceChoice === "nursing" ? (
+          nursingPlan === "basic" ? "방문 요양 (기본)" :
+          nursingPlan === "intensive" ? "방문 요양 (집중)" :
+          nursingPlan === "medication" ? "방문 요양 (투약 전용)" :
+          "방문 요양 (패키지)"
+        ) : "기본 돌봄 (1일 1회 약 30분)",
         visitArea: effectiveVisitArea,
         additionalFee,
         basePrice,
@@ -1865,8 +2004,8 @@ export default function UnifiedPortal() {
           visit_time: visitTimeDisplay,
           visit_date_string: dateStr,
           mandatory_requirements: bookingType === "single"
-            ? `🐾 ${petName} (${petAge}살) ${isReturningCustomer ? "[재신청]" : "[신규]"} | 옵션: ${selectedOptions.join(", ") || '없음'} | 요청: ${careMemo || '없음'}`
-            : `🐾 ${petName} (${petCount}마리) | 상세: ${petDetailsText.substring(0, 100)}... | 기간: ${bookingStartDate} ~ ${bookingEndDate} | [옵션]: ${selectedOptions.join(", ")}`,
+            ? `[${bookingServiceChoice === "nursing" ? "방문 요양" : "일반 돌봄"}] 🐾 ${petName} (${petAge}살) ${isReturningCustomer ? "[재신청]" : "[신규]"} | 옵션: ${selectedOptions.join(", ") || '없음'} | 요청: ${careMemo || '없음'}`
+            : `[${bookingServiceChoice === "nursing" ? "방문 요양" : "일반 돌봄"}] 🐾 ${petName} (${petCount}마리) | 상세: ${petDetailsText.substring(0, 100)}... | 기간: ${bookingStartDate} ~ ${bookingEndDate} | [옵션]: ${selectedOptions.join(", ")}`,
           status: "confirmed",
           is_confirmed_by_sitter: false,
           visit_area: effectiveVisitArea,
@@ -4591,7 +4730,9 @@ export default function UnifiedPortal() {
                         fontSize: "0.82rem",
                         fontWeight: "750",
                         color: "var(--text-main)",
-                        textAlign: "center"
+                        textAlign: "center",
+                        wordBreak: "keep-all",
+                        overflowWrap: "break-word"
                       }}>
                         ✅ {cert}
                       </div>
@@ -4605,7 +4746,9 @@ export default function UnifiedPortal() {
                     fontWeight: "800",
                     color: "var(--primary-orange)",
                     textAlign: "center",
-                    lineHeight: "1.4"
+                    lineHeight: "1.4",
+                    wordBreak: "keep-all",
+                    overflowWrap: "break-word"
                   }}>
                     단순한 돌봄이 아닌,<br />
                     아이의 삶의 질을 돌보는 요양 케어에 집중합니다.
@@ -4713,7 +4856,314 @@ export default function UnifiedPortal() {
             </div>
           </section>
 
-          {/* PricingSection removed from home portal */}
+          {/* ── [방문형 요양 서비스] 요금표 컴포넌트 & 예약 CTA 카드 ── */}
+          <section
+            style={{
+              padding: "60px 0",
+              background: "linear-gradient(180deg, white 0%, hsl(268, 30%, 96%) 100%)",
+              borderTop: "1.5px solid var(--border-light)",
+            }}
+          >
+            <div className="container" style={{ maxWidth: "1000px" }}>
+              {/* 요금표 */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, hsl(268, 40%, 98%) 0%, hsl(265, 30%, 95%) 100%)",
+                  border: "1.5px solid hsl(265, 30%, 88%)",
+                  borderRadius: "20px",
+                  padding: "32px 24px",
+                  marginBottom: "48px",
+                  boxShadow: "0 10px 30px rgba(100, 40, 180, 0.04)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", justifyContent: "center" }}>
+                  <span style={{ fontSize: "1.8rem" }}>💜</span>
+                  <div style={{ textAlign: "center" }}>
+                    <h3 style={{ fontSize: "1.3rem", fontWeight: "900", color: "hsl(268, 40%, 20%)", margin: 0 }}>
+                      방문형 요양 서비스 요금 안내
+                    </h3>
+                    <p style={{ fontSize: "0.85rem", color: "hsl(268, 20%, 45%)", margin: "4px 0 0 0", fontWeight: "600" }}>
+                      노령묘·노령견 및 회복기 아이를 위한 맞춤 전문 케어
+                    </p>
+                  </div>
+                </div>
+
+                {/* 반응형 카드 스타일 테이블 */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  {[
+                    {
+                      title: "🏠 기본 방문 요양",
+                      desc: "1일 1회 방문 (30~40분) / 식사, 배변, 정서 교감, 투약 포함",
+                      price: "30,000원",
+                      tag: "기본 케어"
+                    },
+                    {
+                      title: "🔁 집중 방문 요양",
+                      desc: "1일 2회 방문 / 고령 동물 및 수술 후 질병 회복기 아이 전용 집중 돌봄",
+                      price: "55,000원",
+                      tag: "집중 관리",
+                      isHot: true
+                    },
+                    {
+                      title: "💊 투약 전용 서비스",
+                      desc: "단독 투약 방문 (가루약/알약 복용, 안약 점안 등 전문 복약)",
+                      price: "15,000원",
+                      tag: "투약 단독"
+                    },
+                    {
+                      title: "📅 주간/월간 패키지",
+                      desc: "주 3회 이상 꾸준히 정기 이용 시 특별 할인 혜택 제공",
+                      price: "별도 안내",
+                      tag: "정기 할인"
+                    }
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "14px",
+                        padding: "18px 20px",
+                        backgroundColor: "white",
+                        border: item.isHot ? "1.5px solid var(--gold-border)" : "1px solid hsl(265, 30%, 90%)",
+                        borderRadius: "14px",
+                        boxShadow: item.isHot ? "0 4px 14px rgba(180, 140, 0, 0.08)" : "0 2px 6px rgba(0,0,0,0.02)",
+                        transition: "transform 0.2s ease"
+                      }}
+                    >
+                      <div style={{ flex: "1 1 280px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <strong style={{ fontSize: "1rem", color: "var(--text-main)", fontWeight: "850" }}>
+                            {item.title}
+                          </strong>
+                          <span
+                            style={{
+                              fontSize: "0.72rem",
+                              backgroundColor: "hsl(265, 40%, 92%)",
+                              color: "hsl(268, 50%, 35%)",
+                              padding: "2px 8px",
+                              borderRadius: "10px",
+                              fontWeight: "700"
+                            }}
+                          >
+                            {item.tag}
+                          </span>
+                          {item.isHot && (
+                            <span
+                              style={{
+                                fontSize: "0.72rem",
+                                backgroundColor: "var(--gold-light)",
+                                color: "var(--gold)",
+                                border: "1px solid var(--gold-border)",
+                                padding: "1px 5px",
+                                borderRadius: "4px",
+                                fontWeight: "800"
+                              }}
+                            >
+                              추천
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: "6px 0 0 0", lineHeight: "1.5" }}>
+                          {item.desc}
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "120px", justifyContent: "flex-end" }}>
+                        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: "600" }}>이용요금</span>
+                        <strong style={{ fontSize: "1.2rem", fontWeight: "900", color: item.isHot ? "hsl(268, 50%, 35%)" : "var(--text-main)" }}>
+                          {item.price}
+                        </strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 주의사항 */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "8px",
+                    marginTop: "20px",
+                    padding: "14px 18px",
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    border: "1px dashed hsl(265, 30%, 84%)",
+                    borderRadius: "10px"
+                  }}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>📢</span>
+                  <p style={{ fontSize: "0.82rem", color: "hsl(268, 20%, 40%)", margin: 0, lineHeight: "1.5", fontWeight: "600" }}>
+                    거제 전 지역 기본 운영되며, 외곽 지역(장승포 등)은 교통비 5,000원~ 별도 부과됩니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* 예약 CTA 카드 섹션 */}
+              <div style={{ textAlign: "center", marginBottom: "28px" }}>
+                <span style={{
+                  backgroundColor: "var(--gold-light)",
+                  color: "var(--gold)",
+                  fontSize: "0.8rem", fontWeight: "800",
+                  padding: "5px 12px", borderRadius: "20px",
+                  display: "inline-block", letterSpacing: "0.5px",
+                }}>
+                  📅 쉽고 빠른 실시간 예약 신청
+                </span>
+                <h3 style={{ fontSize: "1.4rem", fontWeight: "800", color: "var(--text-main)", marginTop: "10px", marginBottom: "6px" }}>
+                  목적에 맞는 예약을 선택해 주세요
+                </h3>
+                <p style={{ fontSize: "0.88rem", color: "var(--text-muted)", margin: 0 }}>
+                  클릭하시면 전용 예약 채널 및 실시간 요금 계산기로 즉시 연결됩니다.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                  gap: "20px",
+                }}
+              >
+                {/* 카드 1: 일반 펫시팅 예약하기 */}
+                <div
+                  onClick={() => {
+                    setBookingServiceChoice("general");
+                    setActivePortal("booking");
+                    setBookingSubView("calculator");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    padding: "24px",
+                    borderRadius: "16px",
+                    border: "2px solid hsl(43, 100%, 90%)",
+                    background: "linear-gradient(135deg, hsl(43, 100%, 98%) 0%, hsl(43, 100%, 96%) 100%)",
+                    boxShadow: "0 6px 18px rgba(180, 130, 0, 0.04)",
+                    transition: "all 0.2s ease-in-out",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(180, 130, 0, 0.08)";
+                    e.currentTarget.style.borderColor = "var(--gold-border)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(180, 130, 0, 0.04)";
+                    e.currentTarget.style.borderColor = "hsl(43, 100%, 90%)";
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <span style={{ fontSize: "2rem" }}>🐶🐱</span>
+                      <span style={{
+                        backgroundColor: "var(--gold-light)",
+                        color: "var(--gold)",
+                        fontSize: "0.72rem",
+                        fontWeight: "800",
+                        padding: "3px 8px",
+                        borderRadius: "12px"
+                      }}>
+                        일반 돌봄
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: "1.15rem", fontWeight: "900", color: "var(--text-main)", marginBottom: "8px" }}>
+                      일반 펫시팅 예약하기
+                    </h4>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.5", margin: 0 }}>
+                      기본 돌봄, 산책, 식사 및 배변 케어가 필요할 때 추천합니다.
+                    </p>
+                  </div>
+                  <div style={{
+                    marginTop: "20px",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    backgroundColor: "white",
+                    border: "1px solid hsl(43, 100%, 92%)",
+                    textAlign: "center",
+                    fontWeight: "800",
+                    fontSize: "0.88rem",
+                    color: "var(--gold)"
+                  }}>
+                    실시간 요금 조회 &amp; 예약 ➡️
+                  </div>
+                </div>
+
+                {/* 카드 2: 방문 요양 케어 예약하기 */}
+                <div
+                  onClick={() => {
+                    setBookingServiceChoice("nursing");
+                    setNursingPlan("basic");
+                    setActivePortal("booking");
+                    setBookingSubView("calculator");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    padding: "24px",
+                    borderRadius: "16px",
+                    border: "2px solid hsl(265, 40%, 90%)",
+                    background: "linear-gradient(135deg, hsl(265, 40%, 98%) 0%, hsl(265, 30%, 95%) 100%)",
+                    boxShadow: "0 6px 18px rgba(100, 40, 180, 0.04)",
+                    transition: "all 0.2s ease-in-out",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(100, 40, 180, 0.08)";
+                    e.currentTarget.style.borderColor = "hsl(265, 40%, 82%)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(100, 40, 180, 0.04)";
+                    e.currentTarget.style.borderColor = "hsl(265, 40%, 90%)";
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <span style={{ fontSize: "2rem" }}>🏥✨</span>
+                      <span style={{
+                        backgroundColor: "var(--primary-orange-light)",
+                        color: "var(--primary-orange)",
+                        fontSize: "0.72rem",
+                        fontWeight: "800",
+                        padding: "3px 8px",
+                        borderRadius: "12px"
+                      }}>
+                        프리미엄 요양
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: "1.15rem", fontWeight: "900", color: "var(--text-main)", marginBottom: "8px" }}>
+                      방문 요양 케어 예약하기
+                    </h4>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.5", margin: 0 }}>
+                      노령묘/노령견, 수술 후 회복, 집중 투약 관리가 필요할 때 전문 1:1 케어 서비스를 선택해 주세요.
+                    </p>
+                  </div>
+                  <div style={{
+                    marginTop: "20px",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    backgroundColor: "white",
+                    border: "1px solid hsl(265, 30%, 92%)",
+                    textAlign: "center",
+                    fontWeight: "800",
+                    fontSize: "0.88rem",
+                    color: "hsl(268, 50%, 35%)"
+                  }}>
+                    요양 플랜 조회 &amp; 예약 ➡️
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
         </main>
 
@@ -4968,13 +5418,15 @@ export default function UnifiedPortal() {
                   setArea={handleCalculatorAreaChange}
                   opts={{
                     preMeeting: optPreMeet,
-                    medication: optMedication,
                     forcedFeeding: optForcedFeeding,
                     hospital: optHospital,
-                    twoVisits: optTwoVisits,
                     holiday: isHoliday
                   }}
                   toggleOpt={toggleCalculatorOpt}
+                  serviceChoice={bookingServiceChoice}
+                  setServiceChoice={setBookingServiceChoice}
+                  nursingPlan={nursingPlan}
+                  setNursingPlan={setNursingPlan}
                 />
               </>
             ) : (
@@ -5525,10 +5977,7 @@ export default function UnifiedPortal() {
                         <span>사전 만남 (+10,000원)</span>
                       </label>
 
-                      <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
-                        <input type="checkbox" checked={optMedication} onChange={(e) => setOptMedication(e.target.checked)} />
-                        <span>투약 1회 (+5,000원)</span>
-                      </label>
+
 
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
@@ -5550,10 +5999,7 @@ export default function UnifiedPortal() {
                         <span>강아지 1마리 추가 (+8,000원)</span>
                       </label>
 
-                      <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
-                        <input type="checkbox" checked={optTwoVisits} onChange={(e) => setOptTwoVisits(e.target.checked)} />
-                        <span>1일 2회 방문 (+13,000원)</span>
-                      </label>
+
 
                       <div style={{ fontSize: "0.72rem", color: "var(--warning-coral)", borderTop: "1px dashed var(--border-light)", paddingTop: "8px", marginTop: "4px" }}>
                         ※ 다묘가정 및 강아지가 함께 있는 가정의 경우 돌봄 난이도에 따라 추가요금이 발생할 수 있습니다.
@@ -6157,8 +6603,19 @@ export default function UnifiedPortal() {
                           💰 실시간 예상 이용 요금 상세
                         </span>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                          <span style={{ color: "var(--text-muted)" }}>기본 요금 (17,000원 × {calculateBookingPrice().daysCount}일)</span>
-                          <span style={{ fontWeight: "600" }}>{calculateBookingPrice().basePrice.toLocaleString()}원</span>
+                          <span style={{ color: "var(--text-muted)" }}>
+                            {bookingServiceChoice === "nursing" ? (
+                              nursingPlan === "basic" ? `기본 방문 요양 (30,000원 × ${calculateBookingPrice().daysCount}일)` :
+                              nursingPlan === "intensive" ? `집중 방문 요양 (55,000원 × ${calculateBookingPrice().daysCount}일)` :
+                              nursingPlan === "medication" ? `투약 전용 서비스 (15,000원 × ${calculateBookingPrice().daysCount}일)` :
+                              `주간/월간 패키지 (상담 필요)`
+                            ) : (
+                              `기본 요금 (17,000원 × ${calculateBookingPrice().daysCount}일)`
+                            )}
+                          </span>
+                          <span style={{ fontWeight: "600" }}>
+                            {bookingServiceChoice === "nursing" && nursingPlan === "package" ? "별도 안내" : `${calculateBookingPrice().basePrice.toLocaleString()}원`}
+                          </span>
                         </div>
 
                         {isHoliday && (
@@ -6175,12 +6632,7 @@ export default function UnifiedPortal() {
                           </div>
                         )}
 
-                        {optMedication && (
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                            <span style={{ color: "var(--text-muted)" }}>투약 1회 추가요금</span>
-                            <span style={{ fontWeight: "600" }}>+5,000원</span>
-                          </div>
-                        )}
+
 
                         {optForcedFeeding && (
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
@@ -6203,12 +6655,7 @@ export default function UnifiedPortal() {
                           </div>
                         )}
 
-                        {optTwoVisits && (
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
-                            <span style={{ color: "var(--text-muted)" }}>1일 2회 방문 추가요금</span>
-                            <span style={{ fontWeight: "600" }}>+13,000원</span>
-                          </div>
-                        )}
+
 
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "8px" }}>
                           <span style={{ color: "var(--text-muted)" }}>방문 지역 추가금 ({visitArea === "기타" ? (customArea || "기타 지역") : (visitArea + (visitArea === "사곡" ? "리" : "동"))})</span>
@@ -6220,7 +6667,7 @@ export default function UnifiedPortal() {
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: "800", borderTop: "1px solid var(--border-light)", paddingTop: "8px", color: "var(--primary-orange)" }}>
                           <span>최종 예상 요금</span>
                           <span>
-                            {calculateBookingPrice().totalPrice.toLocaleString()}원
+                            {bookingServiceChoice === "nursing" && nursingPlan === "package" ? "별도 안내" : `${calculateBookingPrice().totalPrice.toLocaleString()}원`}
                           </span>
                         </div>
                       </div>
@@ -7333,9 +7780,8 @@ export default function UnifiedPortal() {
       {/* afterInteractive: 페이지 하이드레이션 직후 로드 → 결제 버튼 클릭 전 SDK 준비 완료 보장 */}
       <Script src="https://js.tosspayments.com/v1/payment" strategy="afterInteractive" />
 
-      {/* AI Chatbot Float Button & Popup Panel */}
-      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 1000 }}>
-        {/* Chatbot Toggle Button */}
+      {/* AI Chatbot Float Button (고정 버튼 - 플로팅) */}
+      <div style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 1001 }}>
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
           style={{
@@ -7366,192 +7812,284 @@ export default function UnifiedPortal() {
         >
           {isChatOpen
             ? <span style={{ fontSize: "1.1rem", fontWeight: "700", color: "hsl(266,60%,30%)" }}>✕</span>
-            : <img src="/image%20(2).jpg" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center" }} />
+            : <img src="/miki_icon.png" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center" }} />
           }
         </button>
+      </div>
 
-        {/* Chatbot Window (Popup Panel) */}
-        {isChatOpen && (
+      {/* AI Chatbot Window — position:fixed 독립 엘리먼트, ref로 드래그 직접 제어 */}
+      {isChatOpen && (
+        <div
+          ref={chatWindowRef}
+          style={{
+            position: "fixed",
+            bottom: "92px",
+            right: "24px",
+            top: "auto",
+            left: "auto",
+            width: "360px",
+            height: "500px",
+            minWidth: "300px",
+            minHeight: "400px",
+            maxWidth: "600px",
+            maxHeight: "800px",
+            resize: "both",
+            overflow: "hidden",
+            backgroundColor: "white",
+            borderRadius: "20px",
+            boxShadow: "var(--shadow-lg)",
+            border: "1px solid var(--border-light)",
+            display: "flex",
+            flexDirection: "column",
+            animation: "fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            zIndex: 1000
+          }}
+        >
+          {/* Header — 드래그 핸들 */}
           <div
+            onMouseDown={handleDragStart}
+            onTouchStart={handleDragStart}
             style={{
-              position: "absolute",
-              bottom: "72px",
-              right: "0",
-              width: "360px",
-              height: "500px",
-              backgroundColor: "white",
-              borderRadius: "20px",
-              boxShadow: "var(--shadow-lg)",
-              border: "1px solid var(--border-light)",
+              padding: "14px 18px",
+              background: "linear-gradient(135deg, hsl(270,30%,97%) 0%, hsl(266,40%,94%) 60%, hsl(43,50%,96%) 100%)",
               display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              animation: "fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderBottom: "2px solid var(--gold-border)",
+              boxShadow: "0 2px 8px rgba(100,40,180,0.07)",
+              cursor: "move",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              touchAction: "none",
             }}
           >
-            {/* Header */}
-            <div
-              style={{
-                padding: "14px 18px",
-                background: "linear-gradient(135deg, hsl(270,30%,97%) 0%, hsl(266,40%,94%) 60%, hsl(43,50%,96%) 100%)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderBottom: "2px solid var(--gold-border)",
-                boxShadow: "0 2px 8px rgba(100,40,180,0.07)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div style={{
-                  width: "44px", height: "44px", borderRadius: "50%",
-                  overflow: "hidden", border: "2.5px solid var(--gold-border)",
-                  boxShadow: "0 0 0 3px var(--gold-light), 0 3px 10px rgba(180,140,0,0.2)",
-                  flexShrink: 0
-                }}>
-                  <img src="/image%20(2).jpg" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }} />
-                </div>
-                <div style={{ textAlign: "left" }}>
-                  <strong style={{ display: "block", fontSize: "0.9rem", color: "var(--text-main)", fontWeight: "800" }}>윤교품애 마스코트 미키 도우미</strong>
-                  <span style={{ fontSize: "0.7rem", color: "var(--gold)", fontWeight: "700" }}>🔔 온라인 · 가상 AI 지원 중</span>
-                </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{
+                width: "44px", height: "44px", borderRadius: "50%",
+                overflow: "hidden", border: "2.5px solid var(--gold-border)",
+                boxShadow: "0 0 0 3px var(--gold-light), 0 3px 10px rgba(180,140,0,0.2)",
+                flexShrink: 0
+              }}>
+                <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }} />
               </div>
-              <button
-                onClick={() => setIsChatOpen(false)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text-muted)",
-                  fontSize: "1.1rem",
-                  cursor: "pointer",
-                  opacity: 0.7,
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
-              >
-                ✕
-              </button>
+              <div style={{ textAlign: "left" }}>
+                <strong style={{ display: "block", fontSize: "0.9rem", color: "var(--text-main)", fontWeight: "800" }}>윤교품애 마스코트 미키 도우미</strong>
+                <span style={{ fontSize: "0.7rem", color: "var(--gold)", fontWeight: "700" }}>🔔 온라인 · 가상 AI 지원 중</span>
+              </div>
             </div>
-
-            {/* Chat Messages Body */}
-            <div
+            <button
+              onClick={() => setIsChatOpen(false)}
               style={{
-                flex: 1,
-                padding: "20px",
-                overflowY: "auto",
-                backgroundColor: "var(--bg-primary)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
+                background: "transparent",
+                border: "none",
+                color: "var(--text-muted)",
+                fontSize: "1.1rem",
+                cursor: "pointer",
+                opacity: 0.7,
               }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
             >
-              {chatMessages.map((msg) => {
-                const isBot = msg.sender === "bot";
-                return (
-                  <div
-                    key={msg.id}
-                    style={{
-                      alignSelf: isBot ? "flex-start" : "flex-end",
-                      maxWidth: "80%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: isBot ? "flex-start" : "flex-end",
-                    }}
-                  >
-                    <div
-                      style={{
+              ✕
+            </button>
+          </div>
+
+          {/* Chat Messages Body */}
+          <div
+            ref={chatBodyRef}
+            style={{
+              position: "relative",
+              flex: 1,
+              padding: "20px",
+              overflowY: "auto",
+              backgroundColor: "var(--bg-primary)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            {chatMessages.map((msg) => {
+              const isBot = msg.sender === "bot";
+              return (
+                <div
+                  key={msg.id}
+                  id={`chat-message-${msg.id}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: isBot ? "flex-start" : "flex-end",
+                    animation: "fadeIn 0.3s ease forwards",
+                  }}
+                >
+                  {isBot && (
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: "8px" }}>
+                      <div style={{
+                        width: "30px", height: "30px", borderRadius: "50%",
+                        overflow: "hidden", border: "1.5px solid var(--gold-border)",
+                        flexShrink: 0
+                      }}>
+                        <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      </div>
+                      <div style={{
+                        maxWidth: "80%",
+                        backgroundColor: "white",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "4px 16px 16px 16px",
                         padding: "10px 14px",
-                        borderRadius: isBot ? "16px 16px 16px 4px" : "16px 16px 4px 16px",
-                        backgroundColor: isBot ? "white" : "var(--gold)",
-                        color: isBot ? "var(--text-main)" : "hsl(270,40%,12%)",
-                        fontSize: "0.85rem",
-                        fontWeight: "600",
-                        boxShadow: isBot ? "0 2px 6px rgba(0,0,0,0.03)" : "0 3px 10px rgba(180,130,0,0.25)",
-                        border: isBot ? "1px solid var(--border-light)" : "1.5px solid var(--gold-border)",
-                        lineHeight: "1.4",
-                        wordBreak: "break-word",
-                        textAlign: "left",
-                      }}
-                    >
+                        fontSize: "0.82rem",
+                        lineHeight: "1.6",
+                        color: "var(--text-main)",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                        whiteSpace: "pre-line",
+                      }}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  )}
+                  {!isBot && (
+                    <div style={{
+                      maxWidth: "80%",
+                      backgroundColor: "var(--primary-orange)",
+                      color: "white",
+                      borderRadius: "16px 16px 4px 16px",
+                      padding: "10px 14px",
+                      fontSize: "0.82rem",
+                      lineHeight: "1.6",
+                      boxShadow: "0 2px 8px rgba(180,100,0,0.18)",
+                    }}>
                       {msg.text}
                     </div>
-                    <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                      {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                );
-              })}
-
-              {/* Bot Typing Indicator */}
-              {isBotTyping && (
-                <div style={{ alignSelf: "flex-start", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                  <div
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: "16px 16px 16px 4px",
-                      backgroundColor: "white",
-                      border: "1px solid var(--border-light)",
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-                      🤖 AI가 생각하는 중...
-                    </span>
-                  </div>
+                  )}
+                  <span style={{
+                    fontSize: "0.65rem",
+                    color: "var(--text-muted)",
+                    marginTop: "4px",
+                    marginLeft: isBot ? "38px" : "0",
+                  }}>
+                    {msg.time.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
                 </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+              );
+            })}
+            {isBotTyping && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{
+                  width: "30px", height: "30px", borderRadius: "50%",
+                  overflow: "hidden", border: "1.5px solid var(--gold-border)", flexShrink: 0
+                }}>
+                  <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+                <div style={{
+                  backgroundColor: "white",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "4px 16px 16px 16px",
+                  padding: "10px 16px",
+                  display: "flex", gap: "4px", alignItems: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} style={{
+                      width: "7px", height: "7px", borderRadius: "50%",
+                      backgroundColor: "var(--text-muted)",
+                      animation: `bounce 1s ease ${i * 0.2}s infinite`,
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
 
-            {/* Input Form Footer */}
-            <form
-              onSubmit={handleSendChatMessage}
+            {/* FAQ Buttons */}
+            <div style={{ marginTop: "8px" }}>
+              <div style={{
+                fontSize: "0.72rem", fontWeight: "700", color: "var(--gold)",
+                marginBottom: "8px", display: "flex", alignItems: "center", gap: "4px"
+              }}>
+                💡 자주 묻는 질문 (FAQ)
+              </div>
+              {FAQ_LIST.map((faq) => (
+                <button
+                  key={faq.id}
+                  onClick={() => handleSendChatMessage(null, faq.question)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 12px",
+                    marginBottom: "6px",
+                    borderRadius: "10px",
+                    border: "1.5px solid var(--border-light)",
+                    backgroundColor: "white",
+                    fontSize: "0.78rem",
+                    fontWeight: "600",
+                    color: "var(--text-main)",
+                    cursor: "pointer",
+                    lineHeight: "1.4",
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--gold-border)";
+                    e.currentTarget.style.backgroundColor = "var(--gold-light)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-light)";
+                    e.currentTarget.style.backgroundColor = "white";
+                  }}
+                >
+                  {faq.question}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Chat Input */}
+          <form
+            onSubmit={handleSendChatMessage}
+            style={{
+              display: "flex",
+              gap: "8px",
+              padding: "12px 16px",
+              borderTop: "1.5px solid var(--border-light)",
+              backgroundColor: "white",
+            }}
+          >
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="질문을 입력하세요..."
               style={{
-                padding: "12px 16px",
-                borderTop: "1px solid var(--border-light)",
-                backgroundColor: "white",
-                display: "flex",
-                gap: "10px",
-                alignItems: "center",
+                flex: 1,
+                padding: "10px 14px",
+                borderRadius: "10px",
+                border: "1.5px solid var(--border-light)",
+                fontSize: "0.82rem",
+                outline: "none",
+                transition: "border-color 0.15s ease",
+              }}
+              onFocus={(e) => e.target.style.borderColor = "var(--primary-orange)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--border-light)"}
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim()}
+              style={{
+                padding: "10px 16px",
+                borderRadius: "10px",
+                backgroundColor: !chatInput.trim() ? "var(--border-light)" : "var(--primary-orange)",
+                color: "white",
+                border: "none",
+                fontSize: "0.85rem",
+                fontWeight: "700",
+                cursor: !chatInput.trim() ? "not-allowed" : "pointer",
+                transition: "var(--transition-fast)",
               }}
             >
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="질문을 입력하세요..."
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: "10px",
-                  border: "1.5px solid var(--border-light)",
-                  fontSize: "0.85rem",
-                  outline: "none",
-                  fontFamily: "var(--font-outfit)",
-                }}
-                onFocus={(e) => e.target.style.borderColor = "var(--primary-orange)"}
-                onBlur={(e) => e.target.style.borderColor = "var(--border-light)"}
-              />
-              <button
-                type="submit"
-                disabled={!chatInput.trim()}
-                style={{
-                  padding: "10px 16px",
-                  borderRadius: "10px",
-                  backgroundColor: !chatInput.trim() ? "var(--border-light)" : "var(--primary-orange)",
-                  color: "white",
-                  border: "none",
-                  fontSize: "0.85rem",
-                  fontWeight: "700",
-                  cursor: !chatInput.trim() ? "not-allowed" : "pointer",
-                  transition: "var(--transition-fast)",
-                }}
-              >
-                전송
-              </button>
-            </form>
-          </div>
-        )}
-      </div>
+              전송
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

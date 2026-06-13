@@ -63,6 +63,8 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 body {
@@ -404,4 +406,20 @@ a {
     font-size: 2.25rem !important;
   }
 }
+
+/* FAQ Scroll Container Custom Scrollbar */
+.faq-scroll-container::-webkit-scrollbar {
+  width: 5px;
+}
+.faq-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.faq-scroll-container::-webkit-scrollbar-thumb {
+  background-color: var(--border-light);
+  border-radius: 4px;
+}
+.faq-scroll-container::-webkit-scrollbar-thumb:hover {
+  background-color: var(--gold-border);
+}
+
 
