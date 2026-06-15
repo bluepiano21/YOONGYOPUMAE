@@ -323,8 +323,7 @@ export default function UnifiedPortal() {
   };
 
   const [chatMessages, setChatMessages] = useState([
-    { id: 1, sender: "bot", text: "안녕하세요! 소중한 아이를 위한 프리미엄 케어, '윤교품애'의 마스코트 고양이 미키입니다. 😸 무엇을 도와드릴까요? 요금, 지역, 예약 방법 등 궁금하신 점을 말씀해 주세요!", time: new Date() },
-    { id: 2, sender: "bot", text: "🐾 현재 '윤교품애'는 고양이 전문 돌봄 서비스를 우선 제공하고 있으며, 더욱 많은 아이들과 만나기 위해 강아지를 위한 프리미엄 케어 서비스도 열심히 준비 중에 있습니다! 조금만 기다려 주세요", time: new Date() }
+    { id: 1, sender: "bot", text: "안녕하세요! 프리미엄 반려동물 돌봄 포털 '윤교품애'의 마스코트 미키 도우미입니다. 🐾 무엇을 도와드릴까요?", time: new Date() }
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isBotTyping, setIsBotTyping] = useState(false);
@@ -364,32 +363,40 @@ export default function UnifiedPortal() {
     let responseText = "👉 죄송합니다. 아직 학습 중인 질문입니다. 😢 더 자세한 문의 사항은 고객센터나 1:1 문의를 이용해 주시면 친절하게 안내해 드리겠습니다.";
     const queryLower = query.toLowerCase();
 
-    // 1. First try direct matching on the question text (ideal for button clicks)
-    let matchedFaq = FAQ_LIST.find(faq =>
-      queryLower.includes(faq.question.toLowerCase()) ||
-      faq.question.toLowerCase().includes(queryLower)
-    );
+    // Check for dog related questions
+    const dogKeywords = ["강아지", "댕댕이", "견주", "독", "dog", "산책"];
+    const isDogRelated = dogKeywords.some(keyword => queryLower.includes(keyword));
 
-    // 2. If not matched, fall back to keyword checking with safe boundaries
-    if (!matchedFaq) {
-      matchedFaq = FAQ_LIST.find(faq =>
-        faq.keywords.some(keyword => {
-          if (!queryLower.includes(keyword)) return false;
-
-          // Special case: prevent "약" in "예약" from triggering "투약/약" FAQ (Q2)
-          if (keyword === "약") {
-            const yeyakCount = (queryLower.match(/예약/g) || []).length;
-            const yakCount = (queryLower.match(/약/g) || []).length;
-            return yakCount > yeyakCount;
-          }
-
-          return true;
-        })
+    if (isDogRelated) {
+      responseText = "🐾 현재 '윤교품애'는 고양이 전문 돌봄 서비스를 우선 제공하고 있으며, 더욱 많은 아이들과 만나기 위해 강아지를 위한 프리미엄 케어 서비스도 열심히 준비 중에 있습니다! 조금만 기다려 주세요.";
+    } else {
+      // 1. First try direct matching on the question text (ideal for button clicks)
+      let matchedFaq = FAQ_LIST.find(faq =>
+        queryLower.includes(faq.question.toLowerCase()) ||
+        faq.question.toLowerCase().includes(queryLower)
       );
-    }
 
-    if (matchedFaq) {
-      responseText = matchedFaq.answer;
+      // 2. If not matched, fall back to keyword checking with safe boundaries
+      if (!matchedFaq) {
+        matchedFaq = FAQ_LIST.find(faq =>
+          faq.keywords.some(keyword => {
+            if (!queryLower.includes(keyword)) return false;
+
+            // Special case: prevent "약" in "예약" from triggering "투약/약" FAQ (Q2)
+            if (keyword === "약") {
+              const yeyakCount = (queryLower.match(/예약/g) || []).length;
+              const yakCount = (queryLower.match(/약/g) || []).length;
+              return yakCount > yeyakCount;
+            }
+
+            return true;
+          })
+        );
+      }
+
+      if (matchedFaq) {
+        responseText = matchedFaq.answer;
+      }
     }
 
     // Mock response after 800ms to feel natural and responsive
@@ -460,7 +467,7 @@ export default function UnifiedPortal() {
   const [showBookingSuccessModal, setShowBookingSuccessModal] = useState(false);
   const [bookingSummary, setBookingSummary] = useState(null);
   const [tempBookingData, setTempBookingData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("card"); // 'card', 'bank', 'zeropay'
+  const [paymentMethod, setPaymentMethod] = useState("bank"); // 'card', 'bank', 'zeropay'
   const [bookingStep, setBookingStep] = useState(1); // 1 = 기본정보, 2 = 건강상태, 3 = 돌봄상세/예약
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -2954,23 +2961,13 @@ export default function UnifiedPortal() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingTop: "150px" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingTop: "110px" }}>
       
       {/* Fixed header wrapper: 배너 + 네비게이션 상단 고정 */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
         boxShadow: "0 2px 12px rgba(0,0,0,0.08)"
       }}>
-        {/* 1. Supabase 연동 알림 배너 */}
-        {isSupabaseConfigured ? (
-          <div className="supabase-banner success">
-            🛡️ Supabase 실시간 클라우드 DB 연동 중 | 윤교품애 RLS 정책 및 스토리지 연계 완수
-          </div>
-        ) : (
-          <div className="supabase-banner warning">
-            ⚠️ Supabase 설정 대기 중. 로컬 RLS 및 30초 보안 타이머 시뮬레이션 모드로 가동되고 있습니다. (blog/.env.local에서 세팅 가능)
-          </div>
-        )}
 
       {/* Global Toast */}
       {toast && (
@@ -4023,16 +4020,17 @@ export default function UnifiedPortal() {
             }}>
               <button
                 type="button"
-                onClick={() => setPaymentMethod("card")}
+                disabled={true}
                 style={{
                   padding: "12px 8px",
                   borderRadius: "10px",
-                  border: paymentMethod === "card" ? "2.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
-                  backgroundColor: paymentMethod === "card" ? "var(--primary-orange-light)" : "white",
-                  color: paymentMethod === "card" ? "var(--primary-orange)" : "var(--text-muted)",
+                  border: "1.5px solid var(--border-light)",
+                  backgroundColor: "hsl(268, 10%, 96%)",
+                  color: "hsl(268, 10%, 65%)",
                   fontWeight: "800",
                   fontSize: "0.8rem",
-                  cursor: "pointer",
+                  cursor: "not-allowed",
+                  opacity: 0.5,
                   transition: "all 0.15s ease",
                   display: "flex",
                   flexDirection: "column",
@@ -4042,6 +4040,7 @@ export default function UnifiedPortal() {
               >
                 <span style={{ fontSize: "1.2rem" }}>💳</span>
                 <span>카드 결제</span>
+                <span style={{ fontSize: "0.65rem", color: "hsl(268, 10%, 50%)", fontWeight: "600", marginTop: "2px" }}>(서비스 준비 중)</span>
               </button>
 
               <button
@@ -4069,16 +4068,17 @@ export default function UnifiedPortal() {
 
               <button
                 type="button"
-                onClick={() => setPaymentMethod("zeropay")}
+                disabled={true}
                 style={{
                   padding: "12px 8px",
                   borderRadius: "10px",
-                  border: paymentMethod === "zeropay" ? "2.5px solid var(--primary-orange)" : "1.5px solid var(--border-light)",
-                  backgroundColor: paymentMethod === "zeropay" ? "var(--primary-orange-light)" : "white",
-                  color: paymentMethod === "zeropay" ? "var(--primary-orange)" : "var(--text-muted)",
+                  border: "1.5px solid var(--border-light)",
+                  backgroundColor: "hsl(268, 10%, 96%)",
+                  color: "hsl(268, 10%, 65%)",
                   fontWeight: "800",
                   fontSize: "0.8rem",
-                  cursor: "pointer",
+                  cursor: "not-allowed",
+                  opacity: 0.5,
                   transition: "all 0.15s ease",
                   display: "flex",
                   flexDirection: "column",
@@ -4088,6 +4088,7 @@ export default function UnifiedPortal() {
               >
                 <span style={{ fontSize: "1.2rem" }}>📱</span>
                 <span>거제 제로페이</span>
+                <span style={{ fontSize: "0.65rem", color: "hsl(268, 10%, 50%)", fontWeight: "600", marginTop: "2px" }}>(서비스 준비 중)</span>
               </button>
             </div>
 
@@ -4257,9 +4258,9 @@ export default function UnifiedPortal() {
       {/* 6. HEADER BAR (Yoongyopoomae branding) */}
       {/* ============================================================== */}
       <header style={{
-        backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-light)",
+        backgroundColor: "var(--bg-secondary)", borderBottom: "3px solid var(--primary-orange)",
         backdropFilter: "blur(10px)",
-        background: "rgba(255,255,255,0.92)",
+        background: "rgba(255,255,255,0.95)",
         position: "relative"
       }}>
         <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "80px", position: "relative" }}>
@@ -4268,15 +4269,17 @@ export default function UnifiedPortal() {
           <div onClick={() => { setActivePortal("home"); setMobileMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", zIndex: 1001 }}>
             <div
               style={{
-                width: "42px",
-                height: "42px",
-                borderRadius: "8px",
-                backgroundImage: "url('/logo.png?v=3')",
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                backgroundImage: "url('/miki_icon.jpg')",
                 backgroundSize: "cover",
                 backgroundPosition: "center",
-                backgroundRepeat: "no-repeat"
+                backgroundRepeat: "no-repeat",
+                border: "2.5px solid var(--gold)",
+                boxShadow: "0 2px 8px rgba(197, 160, 89, 0.25)"
               }}
-              aria-label="윤교품애 로고"
+              aria-label="윤교품애 마스코트 미키 로고"
             />
             <div>
               <span style={{ fontSize: "1.4rem", fontWeight: "800", letterSpacing: "-0.5px", color: "var(--text-main)", fontFamily: "Outfit" }}>
@@ -4550,21 +4553,25 @@ export default function UnifiedPortal() {
               <div className="hero-text">
                 <h1 className="hero-title" style={{
                   fontWeight: "800",
-                  color: "var(--text-main)",
+                  color: "var(--text-deep-purple)",
                   marginBottom: "20px"
                 }}>
-                  고양이들의 행복한 기록을 담습니다 🐾
+                  고양이들의 행복한 기록을 담습니다 <span style={{ color: "var(--gold)", display: "inline-block" }}>🐾</span>
                 </h1>
-                <p className="hero-paragraph">
-                  전문 펫시터 전윤교가 들려주는 생생한 돌봄 이야기와 소중한 고객 고양이들의 일상을 만나보세요. 
-                  주요 주거 안전 코드 보관과 반자동 일지 기록을 제공하는 프리미엄 연동 시스템입니다.
+                <p className="hero-paragraph" style={{ textAlign: "center" }}>
+                  전문 펫시터 전윤교가 들려주는<br />
+                  생생한 돌봄 이야기와<br />
+                  소중한 고객 고양이들의 일상을 만나보세요.<br />
+                  주요 주거 안전 코드 보관과<br />
+                  반자동 일지 기록을 제공하는<br />
+                  프리미엄 연동 시스템입니다.
                 </p>
 
                 {/* Status Indicator from index.html */}
                 <div className="hero-status">
                   <span className="hero-status-dot" style={{
-                    backgroundColor: isLoggedIn ? "var(--gold)" : "var(--primary-orange)",
-                    boxShadow: isLoggedIn ? "0 0 6px 2px rgba(212,175,55,0.55)" : "none"
+                    backgroundColor: "var(--gold)",
+                    boxShadow: "0 0 6px 2px rgba(197,160,89,0.45)"
                   }}></span>
                   <span className="hero-status-text">
                     {isLoggedIn && activeUser ? (
@@ -5114,9 +5121,9 @@ export default function UnifiedPortal() {
                     cursor: "pointer",
                     padding: "24px",
                     borderRadius: "16px",
-                    border: "2px solid hsl(43, 100%, 90%)",
+                    border: "2px solid hsl(265, 30%, 91%)",
                     background: "linear-gradient(135deg, hsl(43, 100%, 98%) 0%, hsl(43, 100%, 96%) 100%)",
-                    boxShadow: "0 6px 18px rgba(180, 130, 0, 0.04)",
+                    boxShadow: "0 6px 18px rgba(100, 40, 180, 0.05)",
                     transition: "all 0.2s ease-in-out",
                     display: "flex",
                     flexDirection: "column",
@@ -5124,13 +5131,13 @@ export default function UnifiedPortal() {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(180, 130, 0, 0.08)";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(100, 40, 180, 0.12)";
                     e.currentTarget.style.borderColor = "var(--gold-border)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "none";
-                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(180, 130, 0, 0.04)";
-                    e.currentTarget.style.borderColor = "hsl(43, 100%, 90%)";
+                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(100, 40, 180, 0.05)";
+                    e.currentTarget.style.borderColor = "hsl(265, 30%, 91%)";
                   }}
                 >
                   <div>
@@ -5182,9 +5189,9 @@ export default function UnifiedPortal() {
                     cursor: "pointer",
                     padding: "24px",
                     borderRadius: "16px",
-                    border: "2px solid hsl(265, 40%, 90%)",
-                    background: "linear-gradient(135deg, hsl(265, 40%, 98%) 0%, hsl(265, 30%, 95%) 100%)",
-                    boxShadow: "0 6px 18px rgba(100, 40, 180, 0.04)",
+                    border: "2px solid hsl(265, 50%, 82%)",
+                    background: "linear-gradient(135deg, hsl(265, 55%, 96%) 0%, hsl(265, 40%, 89%) 100%)",
+                    boxShadow: "0 6px 18px rgba(100, 40, 180, 0.06)",
                     transition: "all 0.2s ease-in-out",
                     display: "flex",
                     flexDirection: "column",
@@ -5192,13 +5199,13 @@ export default function UnifiedPortal() {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(100, 40, 180, 0.08)";
-                    e.currentTarget.style.borderColor = "hsl(265, 40%, 82%)";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(100, 40, 180, 0.14)";
+                    e.currentTarget.style.borderColor = "hsl(265, 55%, 70%)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "none";
-                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(100, 40, 180, 0.04)";
-                    e.currentTarget.style.borderColor = "hsl(265, 40%, 90%)";
+                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(100, 40, 180, 0.06)";
+                    e.currentTarget.style.borderColor = "hsl(265, 50%, 82%)";
                   }}
                 >
                   <div>
@@ -5231,7 +5238,7 @@ export default function UnifiedPortal() {
                     textAlign: "center",
                     fontWeight: "800",
                     fontSize: "0.88rem",
-                    color: "hsl(268, 50%, 35%)"
+                    color: "hsl(268, 60%, 42%)"
                   }}>
                     요양 플랜 조회 &amp; 예약 ➡️
                   </div>
@@ -5345,10 +5352,10 @@ export default function UnifiedPortal() {
                         <div style={{
                           position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
                           backgroundColor: "rgba(22, 31, 56, 0.75)", display: "flex", flexDirection: "column",
-                          alignItems: "center", justifyContent: "center", color: "white", gap: "8px"
+                          alignItems: "center", justifyContent: "center", gap: "8px"
                         }}>
-                          <i className="fas fa-lock" style={{ fontSize: "2.2rem", color: "var(--primary-orange)" }}></i>
-                          <span style={{ fontSize: "0.85rem", fontWeight: "700", letterSpacing: "0.5px" }}>
+                          <i className="fas fa-lock" style={{ fontSize: "2.2rem", color: "var(--gold-border)" }}></i>
+                          <span style={{ fontSize: "0.85rem", fontWeight: "800", letterSpacing: "0.5px", color: "var(--gold-border)" }}>
                             VIP 회원 전용
                           </span>
                         </div>
@@ -7852,6 +7859,19 @@ export default function UnifiedPortal() {
           <div>
             <strong style={{ color: "white", fontSize: "1.1rem", display: "block", marginBottom: "4px" }}>윤교품애 (Yoongyopoomae) Hub</strong>
             <span style={{ fontSize: "0.8rem" }}>사용자 지정 RLS & 30초 암호 마스킹 & 캘린더 예약 스위트</span>
+            
+            {/* 운영자 연락처 및 인스타 정보 */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "8px", fontSize: "0.8rem", color: "rgba(255, 255, 255, 0.55)", alignItems: "center" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <i className="fab fa-instagram" style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.9rem" }}></i>
+                <a href="https://instagram.com/yoonkyopoomae" target="_blank" rel="noopener noreferrer" style={{ color: "rgba(255, 255, 255, 0.75)", transition: "color 0.2s" }} onMouseEnter={(e) => e.target.style.color = "white"} onMouseLeave={(e) => e.target.style.color = "rgba(255, 255, 255, 0.75)"}>yoonkyopoomae</a>
+              </span>
+              <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>|</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <i className="fas fa-phone" style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.85rem" }}></i>
+                <a href="tel:010-3202-2440" style={{ color: "rgba(255, 255, 255, 0.75)", transition: "color 0.2s" }} onMouseEnter={(e) => e.target.style.color = "white"} onMouseLeave={(e) => e.target.style.color = "rgba(255, 255, 255, 0.75)"}>010-3202-2440</a>
+              </span>
+            </div>
           </div>
           <div style={{ fontSize: "0.8rem", textAlign: "right" }}>
             <span>© 2026 윤교품애. All Rights Reserved.</span>
