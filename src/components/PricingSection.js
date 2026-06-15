@@ -5,7 +5,15 @@ import React, { useState } from "react";
 
 const BASIC_AREAS = ["고현", "장평", "상문", "수월", "중곡", "옥포", "아주", "사곡"];
 
-const ADD_ON_OPTIONS = [
+const GENERAL_OPTIONS = [
+  { key: "holiday",       label: "🥳 명절/공휴일 예약",   desc: "(추가금 적용)",  price: 5000  },
+  { key: "medication",    label: "💊 1회성 투약 서비스",  desc: "",              price: 5000  },
+  { key: "preMeeting",    label: "🤝 사전만남",        desc: "(1회)",         price: 10000 },
+  { key: "forcedFeeding", label: "🍼 강제급여",        desc: "(전문케어 1회)", price: 10000 },
+  { key: "hospital",      label: "🏥 병원 방문 동행",   desc: "(1회)",         price: 20000 },
+];
+
+const NURSING_OPTIONS = [
   { key: "preMeeting",    label: "🤝 사전만남",        desc: "(1회)",         price: 10000 },
   { key: "forcedFeeding", label: "🍼 강제급여",        desc: "(전문케어 1회)", price: 10000 },
   { key: "hospital",      label: "🏥 병원 방문 동행",   desc: "(1회)",         price: 20000 },
@@ -37,9 +45,10 @@ export default function PricingSection({
   }
 
   const basePrice  = basePricePerDay * days;
+  const activeOptions = serviceChoice === "general" ? GENERAL_OPTIONS : NURSING_OPTIONS;
   const extraPrice =
     (area === "기타" ? 5000 : 0) +
-    ADD_ON_OPTIONS.reduce((sum, o) => sum + (opts[o.key] ? o.price : 0), 0);
+    activeOptions.reduce((sum, o) => sum + (opts[o.key] ? o.price : 0), 0);
   const totalPrice = basePrice + extraPrice;
 
   return (
@@ -86,23 +95,29 @@ export default function PricingSection({
             display: "flex",
             justifyContent: "center",
             gap: "12px",
-            marginBottom: "48px",
+            marginBottom: "36px",
             flexWrap: "wrap"
           }}
         >
           <button
             onClick={() => setServiceChoice("general")}
             style={{
-              padding: "14px 28px",
+              padding: "16px 36px",
               borderRadius: "var(--border-radius-md)",
-              border: `2px solid ${serviceChoice === "general" ? "var(--gold-border)" : "var(--border-light)"}`,
-              background: serviceChoice === "general" ? "hsl(43, 100%, 95%)" : "white",
-              color: serviceChoice === "general" ? "var(--gold)" : "var(--text-muted)",
+              border: serviceChoice === "general"
+                ? "2px solid var(--primary-orange)"
+                : "2px solid hsl(266, 20%, 88%)",
+              background: serviceChoice === "general"
+                ? "var(--primary-orange)"
+                : "hsl(266, 30%, 97%)",
+              color: serviceChoice === "general" ? "white" : "var(--text-muted)",
               fontWeight: "900",
-              fontSize: "0.95rem",
+              fontSize: "1.05rem",
               cursor: "pointer",
-              boxShadow: serviceChoice === "general" ? "0 4px 12px rgba(180, 130, 0, 0.15)" : "none",
-              transition: "all 0.2s ease"
+              boxShadow: serviceChoice === "general" ? "0 6px 16px rgba(94, 43, 184, 0.25)" : "none",
+              transition: "all 0.2s ease",
+              letterSpacing: "0.3px",
+              minWidth: "260px"
             }}
           >
             🐶🐱 일반 펫시팅 예약 채널
@@ -110,218 +125,27 @@ export default function PricingSection({
           <button
             onClick={() => setServiceChoice("nursing")}
             style={{
-              padding: "14px 28px",
+              padding: "16px 36px",
               borderRadius: "var(--border-radius-md)",
-              border: `2px solid ${serviceChoice === "nursing" ? "var(--primary-orange)" : "var(--border-light)"}`,
-              background: serviceChoice === "nursing" ? "var(--primary-orange-light)" : "white",
-              color: serviceChoice === "nursing" ? "var(--primary-orange)" : "var(--text-muted)",
+              border: serviceChoice === "nursing"
+                ? "2px solid var(--primary-orange)"
+                : "2px solid hsl(266, 20%, 88%)",
+              background: serviceChoice === "nursing"
+                ? "var(--primary-orange)"
+                : "hsl(266, 30%, 97%)",
+              color: serviceChoice === "nursing" ? "white" : "var(--text-muted)",
               fontWeight: "900",
-              fontSize: "0.95rem",
+              fontSize: "1.05rem",
               cursor: "pointer",
-              boxShadow: serviceChoice === "nursing" ? "0 4px 12px rgba(100, 40, 180, 0.15)" : "none",
-              transition: "all 0.2s ease"
+              boxShadow: serviceChoice === "nursing" ? "0 6px 16px rgba(94, 43, 184, 0.25)" : "none",
+              transition: "all 0.2s ease",
+              letterSpacing: "0.3px",
+              minWidth: "260px"
             }}
           >
             🏥✨ 방문 요양 케어 예약 채널
           </button>
         </div>
-
-        {/* ── 서비스 카드 3개 (일반 펫시팅 선택 시 노출) ── */}
-        {serviceChoice === "general" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "24px", marginBottom: "56px",
-            }}
-          >
-            {[
-              {
-                icon: "🏠", title: "방문 탁묘",
-                desc: "보호자 댁으로 직접 방문해 급여·물·화장실·놀이를 케어합니다. 낯선 환경 스트레스 없이 집에서 편안하게 돌봄 받아요.",
-                badge: "기본요금 (1회 ~30분)", badgeVal: "17,000원",
-                accent: "var(--primary-orange)", accentLight: "var(--primary-orange-light)",
-              },
-              {
-                icon: "💊", title: "요양보호 & 회복케어",
-                desc: "노령묘·노령견, 수술 후 회복, 투약·강제급여가 필요한 아이 전문 케어. 10년 경험과 자격으로 의료적 필요를 안전하게 돌봅니다.",
-                badge: "투약 추가 (1회)", badgeVal: "+5,000원",
-                accent: "var(--success-mint)", accentLight: "var(--success-mint-light)",
-              },
-              {
-                icon: "📷", title: "돌봄 일지 & 사진 공유",
-                desc: "매 방문 후 사진·영상과 함께 돌봄 일지를 카카오톡 또는 문자로 전송해드립니다. 멀리서도 아이 상태를 생생하게 확인하세요.",
-                badge: "일지 전송", badgeVal: "기본 포함",
-                accent: "hsl(215,60%,35%)", accentLight: "hsl(215,60%,94%)",
-              },
-            ].map((s) => (
-              <div
-                key={s.title}
-                className="premium-card p-6 md:p-8"
-                style={{ borderTop: `4px solid ${s.accent}` }}
-              >
-                <div style={{ fontSize: "2.2rem", marginBottom: "16px" }}>{s.icon}</div>
-                <h3 style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--text-main)", marginBottom: "10px" }}>
-                  {s.title}
-                </h3>
-                <p style={{ fontSize: "0.88rem", color: "var(--text-muted)", lineHeight: "1.65", marginBottom: "20px" }}>
-                  {s.desc}
-                </p>
-                <div
-                  style={{
-                    backgroundColor: s.accentLight, borderRadius: "10px",
-                    padding: "14px 18px", display: "flex",
-                    justifyContent: "space-between", alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "0.82rem", fontWeight: "700", color: s.accent }}>{s.badge}</span>
-                  <strong style={{ fontSize: "1.25rem", fontWeight: "900", color: s.accent }}>{s.badgeVal}</strong>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── [방문형 요양 서비스] 요금표 컴포넌트 (요양 케어 선택 시 노출) ── */}
-        {serviceChoice === "nursing" && (
-          <div
-            style={{
-              background: "linear-gradient(135deg, hsl(268, 40%, 97%) 0%, hsl(265, 30%, 94%) 100%)",
-              border: "1.5px solid hsl(265, 30%, 88%)",
-              borderRadius: "20px",
-              padding: "30px 24px",
-              marginBottom: "48px",
-              boxShadow: "0 8px 30px rgba(100, 40, 180, 0.05)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-              <span style={{ fontSize: "1.6rem" }}>💜</span>
-              <div>
-                <h3 style={{ fontSize: "1.2rem", fontWeight: "900", color: "hsl(268, 40%, 20%)", margin: 0 }}>
-                  방문형 요양 서비스 요금표
-                </h3>
-                <p style={{ fontSize: "0.8rem", color: "hsl(268, 20%, 45%)", margin: "4px 0 0 0", fontWeight: "600" }}>
-                  노령묘·노령견 및 회복기 아이를 위한 맞춤 전문 케어 플랜
-                </p>
-              </div>
-            </div>
-
-            {/* 리스트/테이블 영역 */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {[
-                {
-                  title: "🏠 기본 방문 요양",
-                  duration: "1일 1회 방문 (30~40분)",
-                  desc: "식사 급여, 배변 정리, 정서 교감, 기본 복약 지도",
-                  price: "30,000원",
-                  isHot: false
-                },
-                {
-                  title: "🔁 집중 방문 요양",
-                  duration: "1일 2회 방문",
-                  desc: "고령 동물 맞춤 돌봄, 수술 후 회복기 반려동물 전용 집중 케어",
-                  price: "55,000원",
-                  isHot: true
-                },
-                {
-                  title: "💊 투약 전용 서비스",
-                  duration: "단독 투약 방문",
-                  desc: "안약 점안, 구강약/가루약 복용, 주사 등 전문 투약 관리",
-                  price: "15,000원",
-                  isHot: false
-                },
-                {
-                  title: "📅 주간/월간 패키지",
-                  duration: "장기 및 정기권 이용",
-                  desc: "주 3회 이상 꾸준한 요양 관리 필요 시 특별 할인 적용",
-                  price: "별도 안내",
-                  isHot: false
-                }
-              ].map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "12px",
-                    padding: "16px 20px",
-                    backgroundColor: "rgba(255, 255, 255, 0.75)",
-                    border: item.isHot ? "1.5px solid var(--gold-border)" : "1px solid hsl(265, 30%, 90%)",
-                    borderRadius: "12px",
-                    transition: "all 0.2s ease-in-out",
-                    boxShadow: item.isHot ? "0 4px 12px rgba(180, 140, 0, 0.1)" : "none"
-                  }}
-                >
-                  <div style={{ flex: "1 1 280px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                      <strong style={{ fontSize: "0.95rem", color: "var(--text-main)", fontWeight: "800" }}>
-                        {item.title}
-                      </strong>
-                      <span
-                        style={{
-                          fontSize: "0.72rem",
-                          backgroundColor: "hsl(265, 40%, 90%)",
-                          color: "hsl(268, 50%, 35%)",
-                          padding: "3px 8px",
-                          borderRadius: "12px",
-                          fontWeight: "700"
-                        }}
-                      >
-                        {item.duration}
-                      </span>
-                      {item.isHot && (
-                        <span
-                          style={{
-                            fontSize: "0.72rem",
-                            backgroundColor: "var(--gold-light)",
-                            color: "var(--gold)",
-                            border: "1px solid var(--gold-border)",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontWeight: "800"
-                          }}
-                        >
-                          추천
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: "6px 0 0 0", lineHeight: "1.4" }}>
-                      {item.desc}
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "120px", justifyContent: "flex-end" }}>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: "600" }}>이용요금</span>
-                    <strong style={{ fontSize: "1.15rem", fontWeight: "900", color: item.isHot ? "hsl(268, 50%, 35%)" : "var(--text-main)" }}>
-                      {item.price}
-                    </strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* 주의사항 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "8px",
-                marginTop: "16px",
-                padding: "12px 16px",
-                backgroundColor: "rgba(255, 255, 255, 0.5)",
-                border: "1px dashed hsl(265, 30%, 85%)",
-                borderRadius: "10px"
-              }}
-            >
-              <span style={{ fontSize: "1rem" }}>📢</span>
-              <p style={{ fontSize: "0.78rem", color: "hsl(268, 20%, 40%)", margin: 0, lineHeight: "1.5", fontWeight: "600" }}>
-                거제 전 지역 기본 운영되며, 외곽 지역(장승포 등)은 교통비 5,000원~ 별도 부과됩니다.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* ── 요금표 + 계산기 2열 ── */}
         <div className="pricing-grid-container">
@@ -462,7 +286,7 @@ export default function PricingSection({
                   ➕ 추가 서비스
                 </label>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {ADD_ON_OPTIONS.map((opt) => (
+                  {activeOptions.map((opt) => (
                     <label
                       key={opt.key}
                       style={{
@@ -487,7 +311,7 @@ export default function PricingSection({
                     >
                       <input
                         type="checkbox"
-                        checked={opts[opt.key]}
+                        checked={opts[opt.key] || false}
                         onChange={() => toggleOpt(opt.key)}
                         style={{ accentColor: "#F3CD5D", width: "16px", height: "16px", cursor: "pointer" }}
                       />
@@ -502,6 +326,21 @@ export default function PricingSection({
                     </label>
                   ))}
                 </div>
+                {/* 명절/공휴일 기준 안내 문구 */}
+                {serviceChoice === "general" && (
+                  <div style={{
+                    marginTop: "8px",
+                    fontSize: "0.74rem",
+                    color: "hsl(266,60%,92%)",
+                    lineHeight: "1.4",
+                    padding: "8px 10px",
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255, 255, 255, 0.1)"
+                  }}>
+                    ℹ️ <strong>명절/공휴일 기준</strong>: 신정, 설날/추석 연휴, 크리스마스, 석가탄신일 및 법정 공휴일
+                  </div>
+                )}
               </div>
 
               {/* 요금 결과 박스 */}

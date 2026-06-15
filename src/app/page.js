@@ -263,6 +263,8 @@ export default function UnifiedPortal() {
   const [bookingSubView, setBookingSubView] = useState("calculator"); // 'calculator' or 'form'
   const [bookingServiceChoice, setBookingServiceChoice] = useState("general"); // 'general' or 'nursing'
   const [nursingPlan, setNursingPlan] = useState("basic"); // 'basic', 'intensive', 'medication', 'package'
+  const [pricingInfoTab, setPricingInfoTab] = useState("general"); // 'general' or 'nursing'
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // --- AI Chatbot Drag: ref 기반 직접 DOM 조작 (React state 미사용 → 60fps 부드러운 드래그) ---
   const chatWindowRef = useRef(null);
@@ -742,6 +744,7 @@ export default function UnifiedPortal() {
     if (optPreMeet) extra += 10000;
     if (optForcedFeeding) extra += 10000;
     if (optHospital) extra += 20000;
+    if (bookingServiceChoice === "general" && optMedication) extra += 5000;
     if (optDogAdd) extra += 8000;
     if (visitArea === "기타") extra += 5000;
     
@@ -799,6 +802,7 @@ export default function UnifiedPortal() {
     else if (key === "forcedFeeding") setOptForcedFeeding((prev) => !prev);
     else if (key === "hospital") setOptHospital((prev) => !prev);
     else if (key === "holiday") setIsHoliday((prev) => !prev);
+    else if (key === "medication") setOptMedication((prev) => !prev);
   };
 
   const handleCalculatorAreaChange = (newArea) => {
@@ -1924,6 +1928,7 @@ export default function UnifiedPortal() {
       if (optPreMeet) selectedOptions.push("사전 만남 (+10,000원)");
       if (optForcedFeeding) selectedOptions.push("급여도움(강제급여) (+10,000원)");
       if (optHospital) selectedOptions.push("병원 방문 1회 (+20,000원)");
+      if (bookingServiceChoice === "general" && optMedication) selectedOptions.push("1회성 투약 서비스 (+5,000원)");
       if (optDogAdd) selectedOptions.push("강아지 1마리 추가 (+8,000원)");
       if (!isReturningCustomer && visitArea === "기타") selectedOptions.push("외 지역 추가요금 (+5,000원)");
 
@@ -2958,19 +2963,11 @@ export default function UnifiedPortal() {
       }}>
         {/* 1. Supabase 연동 알림 배너 */}
         {isSupabaseConfigured ? (
-          <div style={{
-            backgroundColor: "var(--success-mint-light)", color: "var(--success-mint)",
-            padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
-            borderBottom: "1px solid var(--border-light)"
-          }}>
+          <div className="supabase-banner success">
             🛡️ Supabase 실시간 클라우드 DB 연동 중 | 윤교품애 RLS 정책 및 스토리지 연계 완수
           </div>
         ) : (
-          <div style={{
-            backgroundColor: "var(--primary-orange-light)", color: "var(--primary-orange)",
-            padding: "10px 24px", textAlign: "center", fontSize: "0.85rem", fontWeight: "700",
-            borderBottom: "1px solid var(--border-light)"
-          }}>
+          <div className="supabase-banner warning">
             ⚠️ Supabase 설정 대기 중. 로컬 RLS 및 30초 보안 타이머 시뮬레이션 모드로 가동되고 있습니다. (blog/.env.local에서 세팅 가능)
           </div>
         )}
@@ -4551,37 +4548,25 @@ export default function UnifiedPortal() {
               alignItems: "center"
             }}>
               <div className="hero-text">
-                <h1 className="text-3xl md:text-5xl hero-title" style={{
-                  lineHeight: "1.15",
+                <h1 className="hero-title" style={{
                   fontWeight: "800",
                   color: "var(--text-main)",
                   marginBottom: "20px"
                 }}>
-                  고양이들의 행복한<br />기록을 담습니다 🐾
+                  고양이들의 행복한 기록을 담습니다 🐾
                 </h1>
-                <p className="text-base md:text-lg hero-paragraph" style={{ color: "var(--text-muted)", lineHeight: "1.6", marginBottom: "30px" }}>
+                <p className="hero-paragraph">
                   전문 펫시터 전윤교가 들려주는 생생한 돌봄 이야기와 소중한 고객 고양이들의 일상을 만나보세요. 
                   주요 주거 안전 코드 보관과 반자동 일지 기록을 제공하는 프리미엄 연동 시스템입니다.
                 </p>
 
                 {/* Status Indicator from index.html */}
-                <div className="hero-status" style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "12px 20px",
-                  backgroundColor: "var(--bg-secondary)",
-                  borderRadius: "var(--border-radius-md)",
-                  border: "1px solid var(--border-light)",
-                  boxShadow: "var(--shadow-sm)"
-                }}>
-                  <span style={{
-                    width: "10px", height: "10px", borderRadius: "50%",
+                <div className="hero-status">
+                  <span className="hero-status-dot" style={{
                     backgroundColor: isLoggedIn ? "var(--gold)" : "var(--primary-orange)",
-                    display: "inline-block",
                     boxShadow: isLoggedIn ? "0 0 6px 2px rgba(212,175,55,0.55)" : "none"
                   }}></span>
-                  <span style={{ fontSize: "0.9rem", fontWeight: "700", color: "var(--text-main)" }}>
+                  <span className="hero-status-text">
                     {isLoggedIn && activeUser ? (
                       <>현재 <strong style={{ color: "var(--gold)" }}>{activeUser.full_name} ({activeUser.role.toUpperCase()})</strong> 로그인 상태입니다.</>
                     ) : (
@@ -4622,16 +4607,7 @@ export default function UnifiedPortal() {
           }}>
             <div className="container" style={{ maxWidth: "1000px" }}>
               <div style={{ textAlign: "center", marginBottom: "48px" }}>
-                <span style={{
-                  backgroundColor: "var(--primary-orange-light)",
-                  color: "var(--primary-orange)",
-                  fontSize: "0.85rem",
-                  fontWeight: "800",
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  display: "inline-block",
-                  letterSpacing: "0.5px"
-                }}>
+                <span className="brand-badge">
                   반려동물 방문 탁묘 및 요양보호 & 회복 케어 전문
                 </span>
                 <h2 className="text-2xl md:text-3xl" style={{
@@ -4868,55 +4844,144 @@ export default function UnifiedPortal() {
               {/* 요금표 */}
               <div
                 style={{
-                  background: "linear-gradient(135deg, hsl(268, 40%, 98%) 0%, hsl(265, 30%, 95%) 100%)",
-                  border: "1.5px solid hsl(265, 30%, 88%)",
+                  background: pricingInfoTab === "general"
+                    ? "linear-gradient(135deg, hsl(268, 30%, 99%) 0%, hsl(265, 20%, 97%) 100%)"
+                    : "linear-gradient(135deg, hsl(268, 40%, 98%) 0%, hsl(265, 30%, 95%) 100%)",
+                  border: pricingInfoTab === "general"
+                    ? "1.5px solid hsl(265, 20%, 90%)"
+                    : "1.5px solid hsl(265, 30%, 88%)",
                   borderRadius: "20px",
                   padding: "32px 24px",
                   marginBottom: "48px",
                   boxShadow: "0 10px 30px rgba(100, 40, 180, 0.04)",
+                  transition: "all 0.3s ease",
                 }}
               >
+                {/* ── 서비스 요금 안내 탭 선택 ── */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: "12px",
+                    marginBottom: "28px",
+                    borderBottom: "1px solid rgba(100, 40, 180, 0.1)",
+                    paddingBottom: "16px"
+                  }}
+                >
+                  <button
+                    onClick={() => setPricingInfoTab("general")}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: "30px",
+                      border: pricingInfoTab === "general"
+                        ? "1.5px solid hsl(266, 60%, 70%)"
+                        : "1.5px solid transparent",
+                      background: pricingInfoTab === "general"
+                        ? "hsl(266, 60%, 94%)"
+                        : "transparent",
+                      color: pricingInfoTab === "general" ? "hsl(266, 60%, 45%)" : "var(--text-muted)",
+                      fontWeight: "900",
+                      fontSize: "0.95rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    🐶🐱 일반 펫시팅 안내
+                  </button>
+                  <button
+                    onClick={() => setPricingInfoTab("nursing")}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: "30px",
+                      border: pricingInfoTab === "nursing"
+                        ? "1.5px solid var(--primary-orange)"
+                        : "1.5px solid transparent",
+                      background: pricingInfoTab === "nursing"
+                        ? "var(--primary-orange-light)"
+                        : "transparent",
+                      color: pricingInfoTab === "nursing" ? "var(--primary-orange)" : "var(--text-muted)",
+                      fontWeight: "900",
+                      fontSize: "0.95rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    🏥✨ 방문 요양 케어 안내
+                  </button>
+                </div>
+
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", justifyContent: "center" }}>
-                  <span style={{ fontSize: "1.8rem" }}>💜</span>
+                  <span style={{ fontSize: "1.8rem" }}>{pricingInfoTab === "general" ? "🐾" : "💜"}</span>
                   <div style={{ textAlign: "center" }}>
                     <h3 style={{ fontSize: "1.3rem", fontWeight: "900", color: "hsl(268, 40%, 20%)", margin: 0 }}>
-                      방문형 요양 서비스 요금 안내
+                      {pricingInfoTab === "general" ? "일반 펫시팅 서비스 요금 안내" : "방문형 요양 서비스 요금 안내"}
                     </h3>
                     <p style={{ fontSize: "0.85rem", color: "hsl(268, 20%, 45%)", margin: "4px 0 0 0", fontWeight: "600" }}>
-                      노령묘·노령견 및 회복기 아이를 위한 맞춤 전문 케어
+                      {pricingInfoTab === "general"
+                        ? "반려동물 방문 탁묘 및 맞춤형 기본 돌봄 서비스"
+                        : "노령묘·노령견 및 회복기 아이를 위한 맞춤 전문 케어"}
                     </p>
                   </div>
                 </div>
 
                 {/* 반응형 카드 스타일 테이블 */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  {[
-                    {
-                      title: "🏠 기본 방문 요양",
-                      desc: "1일 1회 방문 (30~40분) / 식사, 배변, 정서 교감, 투약 포함",
-                      price: "30,000원",
-                      tag: "기본 케어"
-                    },
-                    {
-                      title: "🔁 집중 방문 요양",
-                      desc: "1일 2회 방문 / 고령 동물 및 수술 후 질병 회복기 아이 전용 집중 돌봄",
-                      price: "55,000원",
-                      tag: "집중 관리",
-                      isHot: true
-                    },
-                    {
-                      title: "💊 투약 전용 서비스",
-                      desc: "단독 투약 방문 (가루약/알약 복용, 안약 점안 등 전문 복약)",
-                      price: "15,000원",
-                      tag: "투약 단독"
-                    },
-                    {
-                      title: "📅 주간/월간 패키지",
-                      desc: "주 3회 이상 꾸준히 정기 이용 시 특별 할인 혜택 제공",
-                      price: "별도 안내",
-                      tag: "정기 할인"
-                    }
-                  ].map((item, idx) => (
+                  {(pricingInfoTab === "general"
+                    ? [
+                        {
+                          title: "🏠 기본 방문 펫시팅 (1회 30분)",
+                          desc: "배변 정리, 급여, 실내 놀이, 가벼운 빗질 등 기본 돌봄 포함",
+                          price: "17,000원",
+                          tag: "기본 돌봄"
+                        },
+                        {
+                          title: "⏳ 시간 연장 펫시팅 (1회 60분)",
+                          desc: "장시간 돌봄이 필요하거나 다묘·다견 가정을 위한 여유로운 케어 플랜",
+                          price: "25,000원",
+                          tag: "시간 연장",
+                          isHot: true
+                        },
+                        {
+                          title: "💊 1회성 투약 서비스",
+                          desc: "정기 케어가 아닌, 해당 돌봄 차수에 필요한 알약, 가루약, 안약 등의 단발성 투약 케어 서비스입니다.",
+                          price: "5,000원",
+                          tag: "투약 케어"
+                        },
+                        {
+                          title: "📅 명절 및 공휴일 추가금 패키지",
+                          desc: "명절 및 빨간 날(공휴일) 돌봄 시 기본 요금에 추가금이 적용되는 패키지입니다. (예약 시 필수 확인!)\n※ 해당일: 신정, 구정(설날 연휴), 추석 연휴, 크리스마스, 석가탄신일 및 법정 공휴일",
+                          price: "+5,000원",
+                          tag: "공휴일 할증"
+                        }
+                      ]
+                    : [
+                        {
+                          title: "🏠 기본 방문 요양",
+                          desc: "1일 1회 방문 (30~40분) / 식사, 배변, 정서 교감, 투약 포함",
+                          price: "30,000원",
+                          tag: "기본 케어"
+                        },
+                        {
+                          title: "🔁 집중 방문 요양",
+                          desc: "1일 2회 방문 / 고령 동물 및 수술 후 질병 회복기 아이 전용 집중 돌봄",
+                          price: "55,000원",
+                          tag: "집중 관리",
+                          isHot: true
+                        },
+                        {
+                          title: "💊 투약 전용 서비스",
+                          desc: "단독 투약 방문 (가루약/알약 복용, 안약 점안 등 전문 복약)",
+                          price: "15,000원",
+                          tag: "투약 단독"
+                        },
+                        {
+                          title: "📅 주간/월간 패키지",
+                          desc: "주 3회 이상 꾸준히 정기 이용 시 특별 할인 혜택 제공",
+                          price: "별도 안내",
+                          tag: "정기 할인"
+                        }
+                      ]
+                  ).map((item, idx) => (
                     <div
                       key={idx}
                       style={{
@@ -4942,8 +5007,12 @@ export default function UnifiedPortal() {
                           <span
                             style={{
                               fontSize: "0.72rem",
-                              backgroundColor: "hsl(265, 40%, 92%)",
-                              color: "hsl(268, 50%, 35%)",
+                              backgroundColor: pricingInfoTab === "general"
+                                ? "hsl(266, 40%, 93%)"
+                                : "hsl(265, 40%, 92%)",
+                              color: pricingInfoTab === "general"
+                                ? "hsl(266, 50%, 50%)"
+                                : "hsl(268, 50%, 35%)",
                               padding: "2px 8px",
                               borderRadius: "10px",
                               fontWeight: "700"
@@ -4967,13 +5036,19 @@ export default function UnifiedPortal() {
                             </span>
                           )}
                         </div>
-                        <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: "6px 0 0 0", lineHeight: "1.5" }}>
+                        <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: "6px 0 0 0", lineHeight: "1.5", whiteSpace: "pre-line" }}>
                           {item.desc}
                         </p>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "120px", justifyContent: "flex-end" }}>
                         <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: "600" }}>이용요금</span>
-                        <strong style={{ fontSize: "1.2rem", fontWeight: "900", color: item.isHot ? "hsl(268, 50%, 35%)" : "var(--text-main)" }}>
+                        <strong style={{
+                          fontSize: "1.2rem",
+                          fontWeight: "900",
+                          color: item.isHot
+                            ? (pricingInfoTab === "general" ? "hsl(266, 50%, 50%)" : "hsl(268, 50%, 35%)")
+                            : "var(--text-main)"
+                        }}>
                           {item.price}
                         </strong>
                       </div>
@@ -5420,7 +5495,8 @@ export default function UnifiedPortal() {
                     preMeeting: optPreMeet,
                     forcedFeeding: optForcedFeeding,
                     hospital: optHospital,
-                    holiday: isHoliday
+                    holiday: isHoliday,
+                    medication: optMedication
                   }}
                   toggleOpt={toggleCalculatorOpt}
                   serviceChoice={bookingServiceChoice}
@@ -5972,12 +6048,17 @@ export default function UnifiedPortal() {
                         <span>명절 / 공휴일 방문 (+5,000원)</span>
                       </label>
 
+                      {bookingServiceChoice === "general" && (
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
+                          <input type="checkbox" checked={optMedication} onChange={(e) => setOptMedication(e.target.checked)} />
+                          <span>1회성 투약 서비스 (+5,000원)</span>
+                        </label>
+                      )}
+
                       <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
                         <input type="checkbox" checked={optPreMeet} onChange={(e) => setOptPreMeet(e.target.checked)} />
                         <span>사전 만남 (+10,000원)</span>
                       </label>
-
-
 
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.85rem", cursor: "pointer", fontWeight: "600" }}>
@@ -6625,14 +6706,19 @@ export default function UnifiedPortal() {
                           </div>
                         )}
 
+                        {bookingServiceChoice === "general" && optMedication && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
+                            <span style={{ color: "var(--text-muted)" }}>1회성 투약 서비스 추가요금</span>
+                            <span style={{ fontWeight: "600" }}>+5,000원</span>
+                          </div>
+                        )}
+
                         {optPreMeet && (
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
                             <span style={{ color: "var(--text-muted)" }}>사전 만남 추가요금</span>
                             <span style={{ fontWeight: "600" }}>+10,000원</span>
                           </div>
                         )}
-
-
 
                         {optForcedFeeding && (
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "4px" }}>
@@ -7812,7 +7898,7 @@ export default function UnifiedPortal() {
         >
           {isChatOpen
             ? <span style={{ fontSize: "1.1rem", fontWeight: "700", color: "hsl(266,60%,30%)" }}>✕</span>
-            : <img src="/miki_icon.png" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center" }} />
+            : <img src="/miki_icon.jpg" alt="미키" style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", objectPosition: "center" }} />
           }
         </button>
       </div>
@@ -7870,7 +7956,7 @@ export default function UnifiedPortal() {
                 boxShadow: "0 0 0 3px var(--gold-light), 0 3px 10px rgba(180,140,0,0.2)",
                 flexShrink: 0
               }}>
-                <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }} />
+                <img src="/miki_icon.jpg" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }} />
               </div>
               <div style={{ textAlign: "left" }}>
                 <strong style={{ display: "block", fontSize: "0.9rem", color: "var(--text-main)", fontWeight: "800" }}>윤교품애 마스코트 미키 도우미</strong>
@@ -7928,7 +8014,7 @@ export default function UnifiedPortal() {
                         overflow: "hidden", border: "1.5px solid var(--gold-border)",
                         flexShrink: 0
                       }}>
-                        <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src="/miki_icon.jpg" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </div>
                       <div style={{
                         maxWidth: "80%",
@@ -7977,7 +8063,7 @@ export default function UnifiedPortal() {
                   width: "30px", height: "30px", borderRadius: "50%",
                   overflow: "hidden", border: "1.5px solid var(--gold-border)", flexShrink: 0
                 }}>
-                  <img src="/miki_icon.png" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src="/miki_icon.jpg" alt="미키" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
                 <div style={{
                   backgroundColor: "white",

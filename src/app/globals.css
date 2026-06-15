@@ -422,4 +422,111 @@ a {
   background-color: var(--gold-border);
 }
 
+/* Responsive adjustments for header, status bar, and banner */
+.supabase-banner {
+  padding: 10px 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-light);
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.supabase-banner.success {
+  background-color: var(--success-mint-light);
+  color: var(--success-mint);
+}
+.supabase-banner.warning {
+  background-color: var(--primary-orange-light);
+  color: var(--primary-orange);
+}
+
+.hero-title {
+  font-size: 2.8rem;
+  line-height: 1.2;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.hero-paragraph {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin-bottom: 30px;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.hero-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background-color: var(--bg-secondary);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+.hero-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.hero-status-text {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.brand-badge {
+  background-color: var(--primary-orange-light);
+  color: var(--primary-orange);
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: inline-block;
+  letter-spacing: 0.5px;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 768px) {
+  .supabase-banner {
+    font-size: 0.7rem !important;
+    padding: 8px 12px !important;
+    line-height: 1.4 !important;
+  }
+  .hero-title {
+    font-size: 1.85rem !important;
+    line-height: 1.25 !important;
+  }
+  .hero-paragraph {
+    font-size: 0.88rem !important;
+    line-height: 1.75 !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  .hero-status {
+    display: flex !important;
+    align-items: center !important;
+    padding: 10px 16px !important;
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+  }
+  .hero-status-text {
+    font-size: 0.78rem !important;
+    text-align: left !important;
+  }
+  .brand-badge {
+    font-size: 0.72rem !important;
+    padding: 6px 12px !important;
+    max-width: 90% !important;
+    line-height: 1.4 !important;
+  }
+}
+
 
